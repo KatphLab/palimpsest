@@ -1,0 +1,19 @@
+{
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.ignore": [
+    "**/venv/**",
+    "**/site-packages/**",
+    "**/Lib/**",
+    "**/.vscode/**",
+    "**/.vscode-server/**"
+  ],
+  "python.testing.pytestEnabled": true,
+  "python.terminal.useEnvFile": true,
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.inlayHints.functionReturnTypes": true,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
+  "git.autofetch": true,
+}
