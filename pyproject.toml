@@ -1,14 +1,19 @@
 [project]
-name = "python-template"
+name = "palimpsest"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "langchain-openai>=1.1.12",
+    "langgraph>=1.1.4",
+    "networkx>=3.6.1",
     "pydantic-settings>=2.13.1",
 ]
 
 [dependency-groups]
 dev = [
+    "mypy>=1.20.0",
     "pre-commit>=4.5.1",
+    "ruff>=0.15.8",
 ]
