@@ -10,6 +10,7 @@ dependencies = [
     "networkx>=3.6.1",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
+    "textual>=8.2.3",
 ]
 
 [dependency-groups]
@@ -24,6 +25,13 @@ test = [
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+markers = [
+    "unit: unit test coverage for isolated components",
+    "integration: integration test coverage for runtime workflows",
+    "contracts: contract test coverage for typed schemas",
+]
 
 [tool.ruff]
 src = ["src", "tests"]
