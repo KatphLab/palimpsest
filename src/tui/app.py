@@ -6,7 +6,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Footer, Header, Static
 
-from models.common import SessionStatus
+from models.common import NodeKind, SessionStatus
 from runtime.session_runtime import SessionRuntime
 from tui.screens import SeedEntryScreen, handle_pause_request, handle_resume_request
 
@@ -86,9 +86,30 @@ class SessionApp(App[None]):
             if self.runtime.session
             else SessionStatus.CREATED
         )
-        return (
-            f"Session: {self.runtime.session_id}\n"
-            f"Status: {status}\n"
-            f"State version: {self.runtime.state_version}\n"
-            f"Nodes: {self.runtime.session_graph.graph.number_of_nodes()}"
-        )
+
+        # Build the base session info
+        lines = [
+            f"Session: {self.runtime.session_id}",
+            f"Status: {status}",
+            f"State version: {self.runtime.state_version}",
+            f"Nodes: {self.runtime.session_graph.graph.number_of_nodes()}",
+            "",
+        ]
+
+        # Show the seed text
+        if self.runtime.session and self.runtime.session.seed_text:
+            lines.append("─" * 40)
+            lines.append("🌱 SEED")
+            lines.append(self.runtime.session.seed_text)
+            lines.append("")
+
+        # Show generated scenes from the graph nodes
+        for node_id, node_data in self.runtime.session_graph.graph.nodes(data=True):
+            graph_node = node_data.get("node")
+            if graph_node and graph_node.node_kind == NodeKind.SCENE:
+                lines.append("─" * 40)
+                lines.append("🎭 SCENE")
+                lines.append(graph_node.text)
+                lines.append("")
+
+        return "\n".join(lines)
