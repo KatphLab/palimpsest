@@ -1,9 +1,13 @@
-"""Session runtime command router skeleton with owned graph state."""
+"""Session runtime command router with owned graph state."""
 
 from __future__ import annotations
 
-from uuid import UUID
+import logging
+from datetime import datetime, timezone
+from threading import Event, Lock, Thread
+from uuid import UUID, uuid4
 
+from agents.scene_agent import SceneAgent
 from graph.session_graph import SessionGraph
 from models.commands import (
     CommandResult,
@@ -18,17 +22,35 @@ from models.commands import (
     TerminalCommand,
     UnlockEdgeCommand,
 )
+from models.common import SessionStatus
+from models.session import Session
 
 __all__ = ["SessionRuntime"]
+
+LOGGER = logging.getLogger(__name__)
+
+_DEFAULT_REFRESH_INTERVAL_SECONDS = 0.25
 
 
 class SessionRuntime:
     """Own the mutable session graph and route commands into handlers."""
 
-    def __init__(self, session_graph: SessionGraph | None = None) -> None:
+    def __init__(
+        self,
+        session_graph: SessionGraph | None = None,
+        *,
+        scene_agent: SceneAgent | None = None,
+        refresh_interval_seconds: float = _DEFAULT_REFRESH_INTERVAL_SECONDS,
+    ) -> None:
         self.session_graph = session_graph or SessionGraph()
         self.state_version = 0
         self.session_id: UUID | None = None
+        self.session: Session | None = None
+        self._scene_agent = scene_agent or SceneAgent()
+        self._refresh_interval_seconds = refresh_interval_seconds
+        self._lock = Lock()
+        self._refresh_stop = Event()
+        self._refresh_thread: Thread | None = None
 
     def handle_command(self, command: TerminalCommand) -> CommandResult:
         """Dispatch a terminal command to the matching handler."""
@@ -63,13 +85,57 @@ class SessionRuntime:
         raise ValueError(f"unsupported command type: {command.command_type}")
 
     def _handle_start_session(self, command: StartSessionCommand) -> CommandResult:
-        return self._build_result(command.command_id, "start_session routed")
+        with self._lock:
+            if command.session_id is not None:
+                raise ValueError("start_session must not include a session_id")
+
+            if self.session is not None:
+                raise ValueError("a session is already active")
+
+            now = datetime.now(timezone.utc)
+            session_id = uuid4()
+            self.session = Session(
+                session_id=session_id,
+                status=SessionStatus.CREATED,
+                seed_text=command.payload.seed_text,
+                graph_version=0,
+                active_node_ids=[],
+                created_at=now,
+                updated_at=now,
+            )
+            self.session_id = session_id
+
+            self._scene_agent.bootstrap_session(
+                self.session,
+                self.session_graph,
+                activated_at=now,
+            )
+            self.state_version = 1
+            self._ensure_refresh_loop()
+
+            LOGGER.info("started session %s", session_id)
+            return self._build_result(command.command_id, "start_session accepted")
 
     def _handle_pause_session(self, command: PauseSessionCommand) -> CommandResult:
-        return self._build_result(command.command_id, "pause_session routed")
+        with self._lock:
+            self._require_active_session(SessionStatus.RUNNING)
+            assert self.session is not None
+
+            self.session.status = SessionStatus.PAUSED
+            self.session.updated_at = datetime.now(timezone.utc)
+            LOGGER.info("paused session %s", self.session_id)
+            return self._build_result(command.command_id, "pause_session accepted")
 
     def _handle_resume_session(self, command: ResumeSessionCommand) -> CommandResult:
-        return self._build_result(command.command_id, "resume_session routed")
+        with self._lock:
+            self._require_active_session(SessionStatus.PAUSED)
+            assert self.session is not None
+
+            self.session.status = SessionStatus.RUNNING
+            self.session.updated_at = datetime.now(timezone.utc)
+            self.state_version += 1
+            LOGGER.info("resumed session %s", self.session_id)
+            return self._build_result(command.command_id, "resume_session accepted")
 
     def _handle_lock_edge(self, command: LockEdgeCommand) -> CommandResult:
         return self._build_result(command.command_id, "lock_edge routed")
@@ -97,3 +163,35 @@ class SessionRuntime:
             state_version=self.state_version,
             message=message,
         )
+
+    def _require_active_session(self, required_status: SessionStatus) -> None:
+        if self.session is None or self.session_id is None:
+            raise ValueError("no active session exists")
+
+        if self.session.status != required_status:
+            raise ValueError(
+                f"session must be {required_status} to handle this command"
+            )
+
+    def _ensure_refresh_loop(self) -> None:
+        if self._refresh_thread is not None:
+            return
+
+        self._refresh_thread = Thread(
+            target=self._refresh_loop,
+            name="session-refresh-loop",
+            daemon=True,
+        )
+        self._refresh_thread.start()
+
+    def _refresh_loop(self) -> None:
+        while not self._refresh_stop.wait(self._refresh_interval_seconds):
+            with self._lock:
+                if self.session is None or self.session.status != SessionStatus.RUNNING:
+                    continue
+
+                self._scene_agent.refresh_visible_state(
+                    self.session,
+                    self.session_graph,
+                    refreshed_at=datetime.now(timezone.utc),
+                )

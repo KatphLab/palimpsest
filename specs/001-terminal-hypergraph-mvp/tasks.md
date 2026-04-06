@@ -53,19 +53,19 @@
 
 ### Tests for User Story 1 (REQUIRED)
 
-- [ ] T015 [P] [US1] Write failing integration test for seed-to-first-scene latency in `tests/integration/test_seed_startup_flow.py`
-- [ ] T016 [P] [US1] Write failing integration test for live refresh freshness (`<=500 ms`) in `tests/integration/test_live_refresh_freshness.py`
-- [ ] T017 [P] [US1] Write failing integration test for pause/resume state continuity in `tests/integration/test_pause_resume_flow.py`
-- [ ] T018 [P] [US1] Write failing command contract tests for `start_session`, `pause_session`, and `resume_session` in `tests/contracts/test_session_control_commands.py`
+- [x] T015 [P] [US1] Write failing integration test for seed-to-first-scene latency in `tests/integration/test_seed_startup_flow.py`
+- [x] T016 [P] [US1] Write failing integration test for live refresh freshness (`<=500 ms`) in `tests/integration/test_live_refresh_freshness.py`
+- [x] T017 [P] [US1] Write failing integration test for pause/resume state continuity in `tests/integration/test_pause_resume_flow.py`
+- [x] T018 [P] [US1] Write failing command contract tests for `start_session`, `pause_session`, and `resume_session` in `tests/contracts/test_session_control_commands.py`
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] Implement `Session` and `SessionSnapshot` models with seed validation in `src/models/session.py`
-- [ ] T020 [P] [US1] Implement `SceneNode` model and activation metadata rules in `src/models/node.py`
-- [ ] T021 [P] [US1] Implement seed bootstrapping and first-scene generation agent in `src/agents/scene_agent.py`
-- [ ] T022 [US1] Implement session run loop, tick scheduling, and pause/resume transitions in `src/runtime/session_runtime.py`
-- [ ] T023 [US1] Implement TUI app shell with active-session panel and refresh subscription in `src/tui/app.py`
-- [ ] T024 [US1] Implement seed entry and pause/resume interaction handlers in `src/tui/screens.py`
+- [x] T019 [P] [US1] Implement `Session` and `SessionSnapshot` models with seed validation in `src/models/session.py`
+- [x] T020 [P] [US1] Implement `SceneNode` model and activation metadata rules in `src/models/node.py`
+- [x] T021 [P] [US1] Implement seed bootstrapping and first-scene generation agent in `src/agents/scene_agent.py`
+- [x] T022 [US1] Implement session run loop, tick scheduling, and pause/resume transitions in `src/runtime/session_runtime.py`
+- [x] T023 [US1] Implement TUI app shell with active-session panel and refresh subscription in `src/tui/app.py`
+- [x] T024 [US1] Implement seed entry and pause/resume interaction handlers in `src/tui/screens.py`
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 

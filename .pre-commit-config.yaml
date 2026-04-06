@@ -15,6 +15,14 @@ repos:
     rev: v1.20.0
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic-settings, pytest, types-networkx]
+        additional_dependencies:
+          [
+            pydantic-settings,
+            pytest,
+            types-networkx,
+            langgraph,
+            textual,
+            langchain-openai,
+          ]
         pass_filenames: false
         args: ['--config-file=mypy.ini', 'src', 'tests']
