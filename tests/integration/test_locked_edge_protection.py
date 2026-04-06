@@ -1,7 +1,5 @@
 """Integration tests for locked-edge protection."""
 
-from time import sleep
-
 import pytest
 
 from agents.scene_agent import SceneAgent
@@ -77,7 +75,6 @@ def test_locked_edge_survives_mutation_cycle_attempt() -> None:
             payload=EmptyPayload(),
         )
     )
-    sleep(0.05)
     resume_result = runtime.handle_command(
         ResumeSessionCommand(
             command_id="cmd-resume-lock-001",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import logging
+from collections import deque
 from datetime import datetime, timezone
 from enum import StrEnum
 from threading import Event, Lock, Thread
@@ -35,11 +36,17 @@ __all__ = ["SessionRuntime"]
 LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_REFRESH_INTERVAL_SECONDS = 0.25
+_MAX_RUNTIME_EVENTS = 1000
 
 
 class _RuntimeEventType(StrEnum):
     """US2 runtime event kinds tracked in memory."""
 
+    ADD_NODE = "add_node"
+    ADD_EDGE = "add_edge"
+    REMOVE_EDGE = "remove_edge"
+    REWRITE_NODE = "rewrite_node"
+    PRUNE_BRANCH = "prune_branch"
     LOCK_EDGE = "lock_edge"
     UNLOCK_EDGE = "unlock_edge"
     FORK_SESSION = "fork_session"
@@ -88,7 +95,9 @@ class SessionRuntime:
         self._refresh_stop = Event()
         self._refresh_thread: Thread | None = None
         self._session_states: dict[UUID, _RuntimeSessionState] = {}
-        self._runtime_event_buffer: list[_RuntimeEvent] = []
+        self._runtime_event_buffer: deque[_RuntimeEvent] = deque(
+            maxlen=_MAX_RUNTIME_EVENTS
+        )
         self._runtime_event_sequence = 0
 
     @property
@@ -97,32 +106,10 @@ class SessionRuntime:
 
         return tuple(self._runtime_event_buffer)
 
-    @property
-    def event_buffer(self) -> tuple[_RuntimeEvent, ...]:
-        """Alias for the runtime event buffer."""
-
-        return self.runtime_event_buffer
-
-    @property
-    def runtime_events(self) -> tuple[_RuntimeEvent, ...]:
-        """Alias for the runtime event buffer."""
-
-        return self.runtime_event_buffer
-
-    def get_runtime_events(self) -> tuple[_RuntimeEvent, ...]:
-        """Return the in-memory runtime event buffer."""
-
-        return self.runtime_event_buffer
-
     def available_session_ids(self) -> tuple[UUID, ...]:
         """Return the known session identifiers in creation order."""
 
         return tuple(self._session_states.keys())
-
-    def list_session_ids(self) -> tuple[UUID, ...]:
-        """Return the known session identifiers in creation order."""
-
-        return self.available_session_ids()
 
     def activate_session(self, session_id: UUID) -> None:
         """Switch the runtime foreground session to a stored session."""

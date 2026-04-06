@@ -43,27 +43,6 @@ class MutationAgent:
             ],
         )
 
-    def filter_proposal(
-        self, proposal: MutationProposal, session_graph: SessionGraph
-    ) -> MutationDecision:
-        """Compatibility alias for review_proposal()."""
-
-        return self.review_proposal(proposal, session_graph)
-
-    def evaluate_proposal(
-        self, proposal: MutationProposal, session_graph: SessionGraph
-    ) -> MutationDecision:
-        """Compatibility alias for review_proposal()."""
-
-        return self.review_proposal(proposal, session_graph)
-
-    def decide(
-        self, proposal: MutationProposal, session_graph: SessionGraph
-    ) -> MutationDecision:
-        """Compatibility alias for review_proposal()."""
-
-        return self.review_proposal(proposal, session_graph)
-
     def apply_decision(
         self, decision: MutationDecision, session_graph: SessionGraph
     ) -> None:
@@ -129,7 +108,7 @@ class MutationAgent:
         if proposal.target_ids:
             safety_checks = [
                 SafetyCheckResult(
-                    check_name="locked_edge_guard",
+                    check_name="edge_mutable_check",
                     status=CheckStatus.PASS,
                     message="edge is unlocked",
                 )
@@ -138,7 +117,7 @@ class MutationAgent:
         else:
             safety_checks = [
                 SafetyCheckResult(
-                    check_name="locked_edge_guard",
+                    check_name="edge_mutable_check",
                     status=CheckStatus.PASS,
                     message="no edge targets provided",
                 )

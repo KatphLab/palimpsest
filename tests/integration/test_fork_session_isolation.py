@@ -3,7 +3,7 @@
 import pytest
 
 from agents.scene_agent import SceneAgent
-from graph.session_graph import SessionGraph
+from graph.session_graph import GraphNode, SessionGraph
 from models.commands import (
     CommandType,
     ForkSessionCommand,
@@ -11,6 +11,7 @@ from models.commands import (
     StartSessionCommand,
     StartSessionPayload,
 )
+from models.common import NodeKind
 from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
 
@@ -72,6 +73,7 @@ def test_fork_session_returns_new_session_and_independent_graph_state() -> None:
     )
     start_result = runtime.handle_command(start_command)
     original_session_id = start_result.session_id
+    original_graph = runtime.session_graph
     original_signature = _graph_signature(runtime)
 
     fork_command = ForkSessionCommand(
@@ -82,10 +84,34 @@ def test_fork_session_returns_new_session_and_independent_graph_state() -> None:
     )
     fork_result = runtime.handle_command(fork_command)
     fork_signature = _graph_signature(runtime)
+    fork_session_id = fork_result.session_id
+
+    assert original_session_id is not None
+    assert fork_session_id is not None
+    assert fork_session_id != original_session_id
+
+    runtime.switch_session(fork_session_id)
+    fork_graph = runtime.session_graph
+    assert fork_graph is not original_graph
+
+    fork_only_node_id = "fork-only-test-node"
+    fork_graph.add_node(
+        GraphNode(
+            node_id=fork_only_node_id,
+            session_id=fork_session_id,
+            node_kind=NodeKind.SCENE,
+            text="Fork-only node",
+        )
+    )
+
+    runtime.switch_session(original_session_id)
+    assert runtime.session_graph is original_graph
 
     assert start_result.accepted is True
-    assert original_session_id is not None
     assert fork_result.accepted is True
-    assert fork_result.session_id is not None
-    assert fork_result.session_id != original_session_id
     assert fork_signature != original_signature
+    assert not original_graph.graph.has_node(fork_only_node_id)
+
+    runtime.switch_session(fork_session_id)
+    assert runtime.session_graph is fork_graph
+    assert runtime.session_graph.graph.has_node(fork_only_node_id)

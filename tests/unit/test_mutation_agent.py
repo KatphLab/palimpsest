@@ -103,7 +103,7 @@ def test_mutation_agent_removes_unlocked_edge_when_accepted() -> None:
     assert decision.rejected_reason is None
     assert decision.safety_checks == [
         SafetyCheckResult(
-            check_name="locked_edge_guard",
+            check_name="edge_mutable_check",
             status=CheckStatus.PASS,
             message="edge is unlocked",
         )

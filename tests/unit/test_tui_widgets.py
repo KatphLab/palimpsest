@@ -1,36 +1,38 @@
-"""Failing prerequisite tests for the TUI widgets track."""
+"""Unit tests for TUI widgets."""
 
 from __future__ import annotations
 
 from importlib import import_module
+from types import ModuleType
 from uuid import UUID
 
 from models.commands import (
     CommandType,
     ForkSessionCommand,
     LockEdgeCommand,
+    TerminalCommand,
     UnlockEdgeCommand,
 )
 
 
-def _widgets_module():
+def _widgets_module() -> ModuleType:
     return import_module("tui.widgets")
 
 
 class _CommandRuntimeSpy:
     def __init__(self) -> None:
-        self.commands = []
+        self.commands: list[TerminalCommand] = []
 
-    def handle_command(self, command):
+    def handle_command(self, command: TerminalCommand) -> str:
         self.commands.append(command)
         return "handled"
 
 
 class _SessionSwitchRuntimeSpy:
     def __init__(self) -> None:
-        self.session_ids = []
+        self.session_ids: list[UUID] = []
 
-    def switch_session(self, session_id):
+    def switch_session(self, session_id: UUID) -> None:
         self.session_ids.append(session_id)
 
 
