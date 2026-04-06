@@ -6,9 +6,12 @@ import argparse
 import logging
 from collections.abc import Sequence
 
+from config.env import get_settings
+from config.logging_config import setup_logging
 from runtime.session_runtime import SessionRuntime
+from tui.app import SessionApp
 
-__all__ = ["main", "run_cli_fallback", "run_textual_mode"]
+__all__ = ["main", "run_textual_mode"]
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,11 +20,6 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for runtime startup."""
 
     parser = argparse.ArgumentParser(prog="palimpsest")
-    parser.add_argument(
-        "--cli",
-        action="store_true",
-        help="start the plain CLI fallback instead of Textual mode",
-    )
     return parser
 
 
@@ -29,34 +27,25 @@ def run_textual_mode(runtime: SessionRuntime) -> int:
     """Start the runtime in Textual mode."""
 
     LOGGER.info("starting runtime in Textual mode")
-    _ = runtime
-    return 0
-
-
-def run_cli_fallback(runtime: SessionRuntime) -> int:
-    """Start the runtime in plain CLI fallback mode."""
-
-    LOGGER.info("starting runtime in CLI fallback mode")
-    _ = runtime
+    app = SessionApp(runtime=runtime)
+    app.run()
     return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the runtime entry point."""
 
+    # Load settings (automatically loads .env file via pydantic-settings)
+    _ = get_settings()
+
+    # Setup logging
+    setup_logging()
+
     parser = build_parser()
-    args = parser.parse_args(list(argv) if argv is not None else None)
+    _ = parser.parse_args(list(argv) if argv is not None else None)
 
     runtime = SessionRuntime()
-
-    if args.cli:
-        return run_cli_fallback(runtime)
-
-    try:
-        return run_textual_mode(runtime)
-    except (ImportError, RuntimeError) as exc:
-        LOGGER.warning("Textual mode unavailable; falling back to CLI: %s", exc)
-        return run_cli_fallback(runtime)
+    return run_textual_mode(runtime)
 
 
 if __name__ == "__main__":
