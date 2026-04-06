@@ -1,6 +1,7 @@
-# Python Project Template
+# Self-Editing Narrative Hypergraph (SENH)
 
-A modern Python project template with best practices for development, featuring UV package management, Pydantic settings, pre-commit hooks, and configurable logging.
+A real-time narrative hypergraph prototype where LLM-driven scene agents can mutate graph
+topology while preserving global story coherence.
 
 ## Features
 
@@ -10,6 +11,12 @@ A modern Python project template with best practices for development, featuring 
 - **Pre-commit Hooks** - Automated code quality checks with Ruff
 - **Configurable Logging** - Flexible logging with multiple formatters
 - **Environment Management** - Dotenv support for local development
+
+## Engineering Governance
+
+- Project constitution: `.specify/memory/constitution.md`
+- Runtime engineering rules: `AGENTS.md`
+- Product requirements baseline: `docs/prd.md`
 
 ## Quick Start
 
@@ -23,7 +30,7 @@ A modern Python project template with best practices for development, featuring 
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd python-template
+cd palimpsest
 
 # Install dependencies and set up pre-commit hooks
 make install
