@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Footer, Header, Static
 
+from models.commands import CommandResult
 from models.common import NodeKind, SessionStatus
 from runtime.session_runtime import SessionRuntime
 from tui.screens import SeedEntryScreen, handle_pause_request, handle_resume_request
+from tui.widgets import (
+    SessionSwitcher,
+    handle_fork_request,
+    handle_lock_request,
+    handle_unlock_request,
+)
 
 __all__ = ["SessionApp"]
 
@@ -32,6 +41,7 @@ class SessionApp(App[None]):
     def __init__(self, runtime: SessionRuntime | None = None) -> None:
         super().__init__()
         self.runtime = runtime or SessionRuntime()
+        self.session_switcher = SessionSwitcher(runtime=self.runtime)
 
     def compose(self) -> ComposeResult:
         """Render the application shell."""
@@ -72,6 +82,26 @@ class SessionApp(App[None]):
         result = handle_resume_request(self.runtime)
         if not result.accepted:
             self.notify(result.message, severity="warning")
+
+    def switch_session(self, session_id: UUID) -> None:
+        """Switch the active runtime session through the wrapper."""
+
+        self.session_switcher.switch_session(session_id)
+
+    def lock_edge(self, edge_id: str) -> CommandResult:
+        """Lock a graph edge through the runtime command router."""
+
+        return handle_lock_request(self.runtime, edge_id)
+
+    def unlock_edge(self, edge_id: str) -> CommandResult:
+        """Unlock a graph edge through the runtime command router."""
+
+        return handle_unlock_request(self.runtime, edge_id)
+
+    def fork_session(self, fork_label: str | None = None) -> CommandResult:
+        """Fork the active session through the runtime command router."""
+
+        return handle_fork_request(self.runtime, fork_label=fork_label)
 
     def _refresh_active_session_panel(self) -> None:
         panel = self.query_one("#active-session-panel", Static)
