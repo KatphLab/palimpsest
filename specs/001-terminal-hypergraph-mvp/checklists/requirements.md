@@ -1,6 +1,6 @@
 # Specification Quality Checklist: Terminal Self-Editing Narrative MVP
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Purpose**: Validate specification completeness and quality before proceeding to planning.
 **Created**: 2026-04-06
 **Feature**: [spec.md](../spec.md)
 
@@ -31,4 +31,4 @@
 
 ## Notes
 
-- Validation pass completed in 1 iteration; no unresolved quality issues.
+- Validation pass completed in one iteration with no unresolved quality issues.
