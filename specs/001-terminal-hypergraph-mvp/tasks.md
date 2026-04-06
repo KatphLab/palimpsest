@@ -31,15 +31,15 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T006 Write failing base model validation tests for enums, timestamps, and `extra="forbid"` behavior in `tests/unit/test_models_base.py`
-- [ ] T007 [P] Write failing discriminated command envelope mismatch tests in `tests/contracts/test_terminal_command_contract.py`
-- [ ] T008 [P] Write failing event envelope monotonic-sequence tests in `tests/contracts/test_event_stream_envelope_base.py`
-- [ ] T009 Implement shared enums and value objects (`SessionStatus`, `DriftCategory`, `EventOutcome`) in `src/models/common.py`
-- [ ] T010 Implement command envelope and payload union models in `src/models/commands.py`
-- [ ] T011 [P] Implement canonical event stream models and envelope contracts in `src/models/events.py`
-- [ ] T012 Implement `SessionGraph` service skeleton with typed add/remove/lock primitives in `src/graph/session_graph.py`
-- [ ] T013 Implement `SessionRuntime` command router skeleton and state ownership boundaries in `src/runtime/session_runtime.py`
-- [ ] T014 Wire `src/main.py` to start runtime in Textual mode with CLI fallback entry path
+- [x] T006 Write failing base model validation tests for enums, timestamps, and `extra="forbid"` behavior in `tests/unit/test_models_base.py`
+- [x] T007 [P] Write failing discriminated command envelope mismatch tests in `tests/contracts/test_terminal_command_contract.py`
+- [x] T008 [P] Write failing event envelope monotonic-sequence tests in `tests/contracts/test_event_stream_envelope_base.py`
+- [x] T009 Implement shared enums and value objects (`SessionStatus`, `DriftCategory`, `EventOutcome`) in `src/models/common.py`
+- [x] T010 Implement command envelope and payload union models in `src/models/commands.py`
+- [x] T011 [P] Implement canonical event stream models and envelope contracts in `src/models/events.py`
+- [x] T012 Implement `SessionGraph` service skeleton with typed add/remove/lock primitives in `src/graph/session_graph.py`
+- [x] T013 Implement `SessionRuntime` command router skeleton and state ownership boundaries in `src/runtime/session_runtime.py`
+- [x] T014 Wire `src/main.py` to start runtime in Textual mode with CLI fallback entry path
 
 **Checkpoint**: Foundation ready - user story implementation can now begin.
 

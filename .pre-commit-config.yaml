@@ -15,6 +15,6 @@ repos:
     rev: v1.20.0
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic-settings]
+        additional_dependencies: [pydantic-settings, pytest, types-networkx]
         pass_filenames: false
         args: ['--config-file=mypy.ini', 'src', 'tests']

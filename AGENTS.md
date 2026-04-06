@@ -48,6 +48,7 @@ uv run pytest
 - Write **docstrings** for all public modules, classes, and functions
 - Keep imports sorted: stdlib → third-party → local (enforced by `ruff`)
 - Use `__all__` to define public API in modules
+- Match imports to the configured Python path and packaging layout in `pyproject.toml`
 
 ### Don't
 
@@ -58,6 +59,14 @@ uv run pytest
 - Do not use **global state** unless absolutely necessary
 - Do not write **god functions** — split logic into helpers
 - Do not leave **dead code**, commented-out blocks, or `TODO` without context
+- Do not add compatibility import shims (for example `src/src/__init__.py`) to paper over incorrect imports
+
+### Import Path Rules (src layout)
+
+- Treat `src/` as the source root for module resolution unless packaging explicitly defines otherwise.
+- If `pyproject.toml` sets `pythonpath = ["src"]`, prefer imports like `from models...`, `from runtime...`, and `from config...` (or package-name imports if configured), not `from src....`.
+- Before introducing or changing import prefixes, verify with a focused pytest run that imports resolve without shims.
+- If tests fail with `ModuleNotFoundError`, fix the import paths/configuration first; do not add path-manipulation workarounds.
 
 ## Testing
 

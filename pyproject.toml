@@ -18,6 +18,10 @@ dev = [
     "mypy>=1.20.0",
     "pre-commit>=4.5.1",
     "ruff>=0.15.8",
+    "types-networkx>=3.6.1.20260402",
+    "types-pexpect>=4.9.0.20260127",
+    "types-pygments>=2.20.0.20260406",
+    "types-pyyaml>=6.0.12.20250915",
 ]
 test = [
     "pytest>=9.0.2",
