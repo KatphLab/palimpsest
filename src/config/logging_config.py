@@ -1,9 +1,9 @@
 import logging.config
 from typing import Any, Dict
 
-from config.env import Settings
+from config.env import get_settings
 
-settings = Settings()
+settings = get_settings()
 
 LOGGING_CONFIG: Dict[str, Any] = {
     "version": 1,
