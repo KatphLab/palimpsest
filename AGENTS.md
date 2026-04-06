@@ -31,6 +31,10 @@ uv run pytest
 
 > Never manually edit `uv.lock`. It is auto-managed by `uv`.
 
+# To setup environment
+
+`make install`
+
 ---
 
 ## Code Style & Best Practices
