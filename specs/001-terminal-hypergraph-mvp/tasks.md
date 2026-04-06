@@ -79,17 +79,17 @@
 
 ### Tests for User Story 2 (REQUIRED)
 
-- [ ] T025 [P] [US2] Write failing integration test for locked-edge protection during mutation cycles in `tests/integration/test_locked_edge_protection.py`
-- [ ] T026 [P] [US2] Write failing integration test for forked-session isolation and independent graph versions in `tests/integration/test_fork_session_isolation.py`
-- [ ] T027 [P] [US2] Write failing command contract tests for `lock_edge`, `unlock_edge`, and `fork_session` in `tests/contracts/test_topology_control_commands.py`
+- [x] T025 [P] [US2] Write failing integration test for locked-edge protection during mutation cycles in `tests/integration/test_locked_edge_protection.py`
+- [x] T026 [P] [US2] Write failing integration test for forked-session isolation and independent graph versions in `tests/integration/test_fork_session_isolation.py`
+- [x] T027 [P] [US2] Write failing command contract tests for `lock_edge`, `unlock_edge`, and `fork_session` in `tests/contracts/test_topology_control_commands.py`
 
 ### Implementation for User Story 2
 
-- [ ] T028 [P] [US2] Implement `NarrativeEdge` model with lock/protection invariants in `src/models/edge.py`
-- [ ] T029 [P] [US2] Implement mutation proposal model and safety gate checks in `src/models/mutation.py`
-- [ ] T030 [P] [US2] Implement mutation safety filter and lock-aware edge operations in `src/agents/mutation_agent.py`
-- [ ] T031 [US2] Implement runtime handlers for lock, unlock, and fork commands in `src/runtime/session_runtime.py`
-- [ ] T032 [US2] Implement TUI controls for edge locking and session switching in `src/tui/widgets.py`
+- [x] T028 [P] [US2] Implement `NarrativeEdge` model with lock/protection invariants in `src/models/edge.py`
+- [x] T029 [P] [US2] Implement mutation proposal model and safety gate checks in `src/models/mutation.py`
+- [x] T030 [P] [US2] Implement mutation safety filter and lock-aware edge operations in `src/agents/mutation_agent.py`
+- [x] T031 [US2] Implement runtime handlers for lock, unlock, and fork commands in `src/runtime/session_runtime.py`
+- [x] T032 [US2] Implement TUI controls for edge locking and session switching in `src/tui/widgets.py`
 
 **Checkpoint**: User Story 2 is independently functional and testable.
 
