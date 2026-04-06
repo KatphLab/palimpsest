@@ -17,11 +17,11 @@
 
 **Purpose**: Project initialization and baseline structure for the terminal MVP runtime.
 
-- [ ] T001 Create runtime module scaffolding in `src/agents/__init__.py`, `src/models/__init__.py`, `src/runtime/__init__.py`, and `src/tui/__init__.py`
-- [ ] T002 Add runtime dependencies (`networkx`, `langgraph`, `langchain-openai`, `textual`, `pydantic-settings`) to `pyproject.toml`
-- [ ] T003 Configure pytest discovery and markers for `unit`, `integration`, and `contracts` in `pyproject.toml`
-- [ ] T004 [P] Create test package scaffolding in `tests/unit/__init__.py`, `tests/integration/__init__.py`, and `tests/contracts/__init__.py`
-- [ ] T005 Define default runtime constants and validated settings fields in `src/config/env.py`
+- [x] T001 Create runtime module scaffolding in `src/agents/__init__.py`, `src/models/__init__.py`, `src/runtime/__init__.py`, and `src/tui/__init__.py`
+- [x] T002 Add runtime dependencies (`networkx`, `langgraph`, `langchain-openai`, `textual`, `pydantic-settings`) to `pyproject.toml`
+- [x] T003 Configure pytest discovery and markers for `unit`, `integration`, and `contracts` in `pyproject.toml`
+- [x] T004 [P] Create test package scaffolding in `tests/unit/__init__.py`, `tests/integration/__init__.py`, and `tests/contracts/__init__.py`
+- [x] T005 Define default runtime constants and validated settings fields in `src/config/env.py`
 
 ---
 

@@ -3,6 +3,8 @@ from typing import Any, Dict
 
 from config.env import get_settings
 
+__all__: list[str] = ["setup_logging"]
+
 settings = get_settings()
 
 LOGGING_CONFIG: Dict[str, Any] = {
