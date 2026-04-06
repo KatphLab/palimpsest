@@ -1,11 +1,7 @@
 import logging.config
 from typing import Any, Dict
 
-from config.env import get_settings
-
 __all__: list[str] = ["setup_logging"]
-
-settings = get_settings()
 
 LOGGING_CONFIG: Dict[str, Any] = {
     "version": 1,
@@ -45,6 +41,10 @@ LOGGING_CONFIG: Dict[str, Any] = {
 
 def setup_logging() -> None:
     """Apply config. Call once at app start."""
+
+    from config.env import get_settings
+
+    settings = get_settings()
     # Optional: respect LOG_LEVEL env var
     level = settings.log_level.upper()
     formatter = settings.log_formatter.lower()

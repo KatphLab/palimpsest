@@ -9,7 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 __all__: list[str] = ["Settings", "get_settings"]
 
-_DEFAULT_OPENAI_MODEL: Final[str] = "gpt-4.1-mini"
+_DEFAULT_OPENAI_MODEL: Final[str] = "accounts/fireworks/routers/kimi-k2p5-turbo"
+_DEFAULT_OPENAI_BASE_URL: Final[str] = "https://api.fireworks.ai/inference/v1"
 _DEFAULT_TUI_REFRESH_MS: Final[int] = 250
 _DEFAULT_STALE_VIEW_GUARDRAIL_MS: Final[int] = 500
 _DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS: Final[int] = 60_000
@@ -34,6 +35,9 @@ class Settings(BaseSettings):
         ...,
         description="OpenAI API key must be present and non-empty",
         min_length=1,
+    )
+    openai_base_url: str = Field(
+        default=_DEFAULT_OPENAI_BASE_URL, description="Base URL for the OpenAI API"
     )
     session_budget_usd: Decimal = Field(default=_DEFAULT_SESSION_BUDGET_USD, gt=0)
     session_coherence_target: float = Field(

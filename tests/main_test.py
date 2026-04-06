@@ -7,26 +7,23 @@ import pytest
 import main as main_module
 
 
-def test_main_uses_textual_mode_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The entry point should prefer Textual mode when no fallback is requested."""
+def test_main_uses_textual_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The entry point should launch the TUI application."""
 
     calls: list[str] = []
     runtime = SimpleNamespace()
+    settings_mock = SimpleNamespace()
 
     monkeypatch.setattr(main_module, "SessionRuntime", lambda: runtime)
+    monkeypatch.setattr(main_module, "get_settings", lambda: settings_mock)
+    monkeypatch.setattr(main_module, "setup_logging", lambda: None)
 
     def fake_run_textual_mode(incoming_runtime: object) -> int:
         _ = incoming_runtime
         calls.append("textual")
         return 0
 
-    def fake_run_cli_fallback(incoming_runtime: object) -> int:
-        _ = incoming_runtime
-        calls.append("cli")
-        return 0
-
     monkeypatch.setattr(main_module, "run_textual_mode", fake_run_textual_mode)
-    monkeypatch.setattr(main_module, "run_cli_fallback", fake_run_cli_fallback)
 
     exit_code = main_module.main([])
 
@@ -34,28 +31,34 @@ def test_main_uses_textual_mode_by_default(monkeypatch: pytest.MonkeyPatch) -> N
     assert calls == ["textual"]
 
 
-def test_main_uses_cli_fallback_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The entry point should expose a CLI fallback flag."""
+def test_main_initializes_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The entry point should load settings and initialize logging."""
 
     calls: list[str] = []
     runtime = SimpleNamespace()
+    settings_mock = SimpleNamespace()
+
+    def mock_get_settings() -> object:
+        calls.append("get_settings")
+        return settings_mock
+
+    def mock_setup_logging() -> None:
+        calls.append("setup_logging")
 
     monkeypatch.setattr(main_module, "SessionRuntime", lambda: runtime)
+    monkeypatch.setattr(main_module, "get_settings", mock_get_settings)
+    monkeypatch.setattr(main_module, "setup_logging", mock_setup_logging)
 
     def fake_run_textual_mode(incoming_runtime: object) -> int:
         _ = incoming_runtime
         calls.append("textual")
         return 0
 
-    def fake_run_cli_fallback(incoming_runtime: object) -> int:
-        _ = incoming_runtime
-        calls.append("cli")
-        return 0
-
     monkeypatch.setattr(main_module, "run_textual_mode", fake_run_textual_mode)
-    monkeypatch.setattr(main_module, "run_cli_fallback", fake_run_cli_fallback)
 
-    exit_code = main_module.main(["--cli"])
+    exit_code = main_module.main([])
 
     assert exit_code == 0
-    assert calls == ["cli"]
+    assert "get_settings" in calls
+    assert "setup_logging" in calls
+    assert "textual" in calls

@@ -1,3 +1,5 @@
 """Session runtime orchestration package."""
 
-__all__: list[str] = []
+from runtime.session_runtime import SessionRuntime
+
+__all__: list[str] = ["SessionRuntime"]

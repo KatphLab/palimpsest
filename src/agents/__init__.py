@@ -1,3 +1,5 @@
 """Agent package for narrative runtime workflows."""
 
-__all__: list[str] = []
+from agents.scene_agent import SceneAgent
+
+__all__: list[str] = ["SceneAgent"]
