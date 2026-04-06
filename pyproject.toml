@@ -8,6 +8,7 @@ dependencies = [
     "langchain-openai>=1.1.12",
     "langgraph>=1.1.4",
     "networkx>=3.6.1",
+    "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
 ]
 
