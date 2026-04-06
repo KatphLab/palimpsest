@@ -49,6 +49,10 @@ class SessionApp(App[None]):
     def action_start_session(self) -> None:
         """Open the seed entry screen."""
 
+        if self.runtime.session_id is not None:
+            self.notify("A session is already running", severity="warning")
+            return
+
         self.push_screen(SeedEntryScreen(self.runtime))
 
     def action_pause_session(self) -> None:
@@ -65,7 +69,9 @@ class SessionApp(App[None]):
         if self.runtime.session_id is None:
             return
 
-        handle_resume_request(self.runtime)
+        result = handle_resume_request(self.runtime)
+        if not result.accepted:
+            self.notify(result.message, severity="warning")
 
     def _refresh_active_session_panel(self) -> None:
         panel = self.query_one("#active-session-panel", Static)

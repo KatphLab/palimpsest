@@ -128,8 +128,23 @@ class SessionRuntime:
 
     def _handle_resume_session(self, command: ResumeSessionCommand) -> CommandResult:
         with self._lock:
-            self._require_active_session(SessionStatus.PAUSED)
-            assert self.session is not None
+            if self.session is None or self.session_id is None:
+                raise ValueError("no active session exists")
+
+            # If session is already running, return a rejected result instead of error
+            if self.session.status == SessionStatus.RUNNING:
+                return CommandResult(
+                    command_id=command.command_id,
+                    accepted=False,
+                    session_id=self.session_id,
+                    state_version=self.state_version,
+                    message="Session is already running",
+                )
+
+            if self.session.status != SessionStatus.PAUSED:
+                raise ValueError(
+                    f"session must be {SessionStatus.PAUSED} to handle this command"
+                )
 
             self.session.status = SessionStatus.RUNNING
             self.session.updated_at = datetime.now(timezone.utc)
