@@ -6,7 +6,7 @@
 
 **Spec Version:** 1.2.0
 
-**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and mutation-candidate selection; and an LLM-backed mutation-action proposer that consumes narrative context (last two scenes plus graph metrics) to choose `add_node`/`remove_edge`/`rewrite_node`/`no_op` with deterministic fallback. Mutation remains serialized to one activation and one mutation resolution per cycle and is advanced explicitly through the TUI continue action. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
+**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and mutation-candidate selection; and an LLM-backed mutation-action proposer that consumes narrative context (last two scenes plus graph metrics) to choose `add_node`/`remove_edge`/`rewrite_node`/`no_op`. LLM selection failures emit telemetry, skip mutation application, and enter backoff before the next retry. Mutation remains serialized to one activation and one mutation resolution per cycle and is advanced explicitly through the TUI continue action. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
 
 **Tech Stack:** Python 3.12, uv, Pydantic 2.12, NetworkX 3.6, LangGraph 1.1, langchain-openai 1.1, Textual, pytest.
 
@@ -62,7 +62,6 @@ src/
 │   └── logging_config.py
 ├── agents/
 │   ├── __init__.py
-│   ├── deterministic_mutation_proposer.py
 │   ├── llm_mutation_proposer.py
 │   ├── scene_agent.py
 │   ├── mutation_agent.py

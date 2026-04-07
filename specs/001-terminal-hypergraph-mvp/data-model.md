@@ -10,7 +10,7 @@
 - No plain dictionaries are exchanged between the TUI, the LangGraph runtime, the graph service, or the export layer.
 - Runtime mutation proposals are produced by a dedicated LangGraph mutation-proposer subgraph that is separate from scene-generation orchestration.
 - Node activation for mutation is LLM-decided and constrained to one activated candidate per mutation cycle.
-- Mutation action selection is LLM-decided from explicit narrative context (last two scenes plus graph topology counters), with deterministic fallback.
+- Mutation action selection is LLM-decided from explicit narrative context (last two scenes plus graph topology counters); failed selections emit telemetry, skip mutation application, and enter backoff.
 
 ## Supporting enums and embedded models
 
@@ -85,7 +85,7 @@
 | Field | Type | Rules |
 |---|---|---|
 | `decision_id` | `str` | Stable id for cycle-local decision |
-| `source` | `str` | `llm` or `fallback` |
+| `source` | `str` | `llm` |
 | `action_type` | `MutationActionType` | Chosen action |
 | `reasoning` | `str` | Non-empty natural-language rationale |
 | `confidence` | `float` | 0.0-1.0 |
@@ -311,7 +311,7 @@ Structured JSON export of a session snapshot.
 12. `add_node` decisions must produce a non-empty scene text for the created node before the cycle is considered complete.
 13. `prune_branch` must target a valid branch root and may not remove seed-protected or otherwise protected graph state.
 14. LLM mutation action selection must receive `NarrativeContext` including up to two recent scene texts plus graph node/edge/branch counts.
-15. If LLM selection fails validation, runtime must use deterministic fallback and mark selection `source=fallback`.
+15. If LLM selection fails validation, runtime must emit failure telemetry, skip mutation application for that cycle, and engage backoff before retrying.
 
 ## State transitions
 
@@ -368,7 +368,7 @@ Structured JSON export of a session snapshot.
 - FR-019: immediate scene generation requirements for accepted `add_node` actions.
 - FR-020: `prune_branch` subgraph semantics with protection guardrails.
 - FR-023/FR-024: `NarrativeContext` and `MutationActionSelection` define LLM action-decision inputs and outputs for boring-vs-interesting mutation choice.
-- FR-025: deterministic fallback is captured by `MutationActionSelection.source` (`llm` or `fallback`).
+- FR-025: `MutationActionSelection.source` is fixed to `llm`, and failed selection attempts are handled through runtime failure telemetry and backoff.
 - FR-026: mutation decision telemetry fields (`source`, `action_type`, `confidence`, `reasoning`) are first-class typed data.
 - CA-001: `CoherenceSnapshot.global_score` and periodic checks.
 - CA-002: seed immutability, locked-edge protection, mutation caps, cooldown.

@@ -17,6 +17,7 @@ def test_setup_logging_applies_env_level_and_formatter(
 
     captured: dict[str, object] = {}
     original_level = logging_config.LOGGING_CONFIG["root"]["level"]
+    original_handlers = logging_config.LOGGING_CONFIG["root"]["handlers"]
     original_console_level = logging_config.LOGGING_CONFIG["handlers"]["console"][
         "level"
     ]
@@ -33,8 +34,11 @@ def test_setup_logging_applies_env_level_and_formatter(
         captured["config"] = value
         if isinstance(value, dict):
             captured["root_level"] = value["root"]["level"]
+            captured["root_handlers"] = value["root"]["handlers"]
             captured["console_level"] = value["handlers"]["console"]["level"]
             captured["console_formatter"] = value["handlers"]["console"]["formatter"]
+            captured["file_handler_class"] = value["handlers"]["file"]["class"]
+            captured["file_handler_formatter"] = value["handlers"]["file"]["formatter"]
 
     monkeypatch.setattr("logging.config.dictConfig", _fake_dict_config)
 
@@ -42,6 +46,7 @@ def test_setup_logging_applies_env_level_and_formatter(
         logging_config.setup_logging()
     finally:
         logging_config.LOGGING_CONFIG["root"]["level"] = original_level
+        logging_config.LOGGING_CONFIG["root"]["handlers"] = original_handlers
         logging_config.LOGGING_CONFIG["handlers"]["console"]["level"] = (
             original_console_level
         )
@@ -51,8 +56,11 @@ def test_setup_logging_applies_env_level_and_formatter(
 
     assert captured["config"] is logging_config.LOGGING_CONFIG
     assert captured["root_level"] == "DEBUG"
+    assert captured["root_handlers"] == ["console", "file"]
     assert captured["console_level"] == "DEBUG"
     assert captured["console_formatter"] == "detailed"
+    assert captured["file_handler_class"] == "logging.handlers.RotatingFileHandler"
+    assert captured["file_handler_formatter"] == "detailed"
 
 
 def test_config_setup_logging_delegates_to_logging_module(

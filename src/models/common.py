@@ -124,6 +124,7 @@ class MutationEventKind(StrEnum):
     REJECTED = "rejected"
     VETOED = "vetoed"
     COOLED_DOWN = "cooled_down"
+    FAILED = "failed"
 
 
 class EventOutcome(StrEnum):
