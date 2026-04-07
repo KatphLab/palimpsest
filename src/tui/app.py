@@ -17,6 +17,9 @@ from tui.story_projection import build_story_lines
 from tui.widgets import (
     SessionSwitcher,
     ShortcutFooterBar,
+    build_entropy_hotspot_lines,
+    build_mutation_log_lines,
+    build_node_detail_lines,
     handle_fork_request,
     handle_lock_request,
     handle_unlock_request,
@@ -188,6 +191,20 @@ class SessionApp(App[None]):
                 build_story_lines(
                     session_graph=self.runtime.session_graph,
                     session=self.runtime.session,
+                )
+            )
+            lines.extend(
+                build_entropy_hotspot_lines(session_graph=self.runtime.session_graph)
+            )
+            lines.extend(
+                build_node_detail_lines(
+                    session_graph=self.runtime.session_graph,
+                    session=self.runtime.session,
+                )
+            )
+            lines.extend(
+                build_mutation_log_lines(
+                    event_log=getattr(self.runtime, "event_log", None)
                 )
             )
 

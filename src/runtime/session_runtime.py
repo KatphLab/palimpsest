@@ -7,6 +7,7 @@ import logging
 from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from enum import StrEnum
 from threading import Lock
 from uuid import UUID, uuid4
@@ -40,6 +41,8 @@ from models.commands import (
 )
 from models.common import (
     CheckStatus,
+    DriftCategory,
+    EventOutcome,
     MutationActionType,
     MutationEventKind,
     ProtectionReason,
@@ -48,10 +51,13 @@ from models.common import (
     StrictBaseModel,
     UTCDateTime,
 )
+from models.events import EventType, MutationStreamEvent, SessionEvent
 from models.graph import GraphEdge, GraphNode
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
 from models.session import Session
+from runtime.event_log import EventLog
+from runtime.exporter import build_export_artifact, write_export_artifact
 
 __all__ = ["SessionRuntime"]
 
@@ -72,6 +78,7 @@ _RUNTIME_MUTATION_BURST_WINDOW = timedelta(
 )
 _RUNTIME_MUTATION_BURST_TRIGGER_COUNT = _DEFAULT_MUTATION_BURST_TRIGGER_COUNT
 _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD = _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD
+_RUNTIME_BUDGET_WARNING_RATIO = Decimal("0.85")
 
 _SESSION_GRAPH_ADD_NODE_ORIGINAL: Callable[[SessionGraph, GraphNode], None] | None = (
     None
@@ -154,7 +161,7 @@ class _RuntimeEvent(StrictBaseModel):
     """Lightweight runtime event record."""
 
     sequence: int = Field(ge=1)
-    event_type: _RuntimeEventType | MutationEventKind
+    event_type: _RuntimeEventType | MutationEventKind | EventType
     session_id: UUID
     occurred_at: UTCDateTime
     command_id: str = Field(min_length=1)
@@ -171,6 +178,7 @@ class _RuntimeSessionState(StrictBaseModel):
 
     session: Session
     session_graph: SessionGraph
+    event_log: EventLog
     node_cooldowns: dict[str, UTCDateTime] = Field(default_factory=dict)
     recent_mutation_times: list[UTCDateTime] = Field(default_factory=list)
     burst_check_pending: bool = False
@@ -269,6 +277,19 @@ class SessionRuntime:
 
         return tuple(self._runtime_event_buffer)
 
+    @property
+    def event_log(self) -> EventLog | None:
+        """Return the active session event log when one exists."""
+
+        if self.session_id is None:
+            return None
+
+        session_state = self._session_states.get(self.session_id)
+        if session_state is None:
+            return None
+
+        return session_state.event_log
+
     def available_session_ids(self) -> tuple[UUID, ...]:
         """Return the known session identifiers in creation order."""
 
@@ -347,6 +368,15 @@ class SessionRuntime:
             self._session_states[session_id] = _RuntimeSessionState(
                 session=self.session,
                 session_graph=self.session_graph,
+                event_log=EventLog(session_id=session_id, latest_sequence=0, events=[]),
+            )
+            self._append_session_event(
+                session_id=session_id,
+                event_type=EventType.SESSION_STARTED,
+                command_id=command.command_id,
+                message="session started",
+                target_ids=list(self.session.active_node_ids),
+                actor_id="session-runtime",
             )
             self.state_version = 1
 
@@ -458,6 +488,7 @@ class SessionRuntime:
             self._session_states[fork_session_id] = _RuntimeSessionState(
                 session=forked_session,
                 session_graph=forked_graph,
+                event_log=copy.deepcopy(active_state.event_log),
                 node_cooldowns=dict(active_state.node_cooldowns),
                 recent_mutation_times=list(active_state.recent_mutation_times),
                 burst_check_pending=active_state.burst_check_pending,
@@ -496,10 +527,93 @@ class SessionRuntime:
             )
 
     def _handle_inspect_node(self, command: InspectNodeCommand) -> CommandResult:
-        return self._build_result(command.command_id, "inspect_node routed")
+        with self._lock:
+            if self.session is None or self.session_id is None:
+                raise ValueError(_NO_ACTIVE_SESSION_ERROR)
+
+            self._require_command_session_matches_active(command.session_id)
+            self._require_inspectable_node(command.payload.node_id)
+            assert self.session is not None
+
+            node_data = self.session_graph.graph.nodes[command.payload.node_id]
+            graph_node = node_data.get("node")
+            scene_node = node_data.get("scene_node")
+            assert isinstance(graph_node, GraphNode)
+            assert isinstance(scene_node, SceneNode)
+
+            chronology = " -> ".join(self.session.active_node_ids) or "unknown"
+            last_activated_at = (
+                scene_node.last_activated_at.isoformat()
+                if scene_node.last_activated_at is not None
+                else "unknown"
+            )
+            drift_category = scene_node.drift_category or DriftCategory.STABLE
+            message = (
+                "inspect_node accepted: "
+                f"node_id={graph_node.node_id}; "
+                f"entropy={scene_node.entropy_score:.2f}; "
+                f"drift={drift_category.value}; "
+                f"activation_count={scene_node.activation_count}; "
+                f"last_activated_at={last_activated_at}; "
+                f"chronology={chronology}; "
+                f"session_start={self.session.created_at.isoformat()}; "
+                "source=start_session accepted"
+            )
+            return CommandResult(
+                command_id=command.command_id,
+                accepted=True,
+                session_id=self.session_id,
+                state_version=self.state_version,
+                message=message,
+            )
 
     def _handle_export_session(self, command: ExportSessionCommand) -> CommandResult:
-        return self._build_result(command.command_id, "export_session routed")
+        with self._lock:
+            if self.session is None or self.session_id is None:
+                raise ValueError(_NO_ACTIVE_SESSION_ERROR)
+
+            self._require_command_session_matches_active(command.session_id)
+            assert self.session is not None
+            assert self.session_id is not None
+
+            now = datetime.now(timezone.utc)
+            session_snapshot = self.session.snapshot(captured_at=now)
+            session_state = self._session_states[self.session_id]
+            artifact = build_export_artifact(
+                session_snapshot=session_snapshot,
+                session_graph=self.session_graph,
+                events=session_state.event_log.read().events,
+                exported_at=now,
+            )
+
+            try:
+                written_path = write_export_artifact(
+                    command.payload.output_path,
+                    artifact,
+                )
+            except ValueError as error:
+                return CommandResult(
+                    command_id=command.command_id,
+                    accepted=False,
+                    session_id=self.session_id,
+                    state_version=self.state_version,
+                    message=str(error),
+                )
+
+            self._append_session_event(
+                session_id=self.session_id,
+                event_type=EventType.EXPORT_CREATED,
+                command_id=command.command_id,
+                message=f"export_session accepted: wrote {written_path}",
+                actor_id="session-runtime",
+            )
+            return CommandResult(
+                command_id=command.command_id,
+                accepted=True,
+                session_id=self.session_id,
+                state_version=self.state_version,
+                message=f"export_session accepted: wrote {written_path}",
+            )
 
     def _handle_quit(self, command: QuitCommand) -> CommandResult:
         return self._build_result(command.command_id, "quit routed")
@@ -549,6 +663,7 @@ class SessionRuntime:
 
         now = datetime.now(timezone.utc)
         self._prune_runtime_guardrails(session_state, now)
+        self._emit_budget_telemetry_events()
 
         _reset_runtime_mutation_cycle(self.session_graph)
         try:
@@ -918,7 +1033,7 @@ class SessionRuntime:
     def _append_runtime_event(
         self,
         *,
-        event_type: _RuntimeEventType | MutationEventKind,
+        event_type: _RuntimeEventType | MutationEventKind | EventType,
         command_id: str,
         session_id: UUID | None,
         message: str,
@@ -930,19 +1045,19 @@ class SessionRuntime:
             raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
         self._runtime_event_sequence += 1
-        self._runtime_event_buffer.append(
-            _RuntimeEvent(
-                sequence=self._runtime_event_sequence,
-                event_type=event_type,
-                session_id=session_id,
-                occurred_at=datetime.now(timezone.utc),
-                command_id=command_id,
-                message=message,
-                edge_id=edge_id,
-                forked_session_id=forked_session_id,
-                parent_session_id=parent_session_id,
-            )
+        runtime_event = _RuntimeEvent(
+            sequence=self._runtime_event_sequence,
+            event_type=event_type,
+            session_id=session_id,
+            occurred_at=datetime.now(timezone.utc),
+            command_id=command_id,
+            message=message,
+            edge_id=edge_id,
+            forked_session_id=forked_session_id,
+            parent_session_id=parent_session_id,
         )
+        self._runtime_event_buffer.append(runtime_event)
+        self._mirror_runtime_event_to_event_log(runtime_event)
 
     def _append_mutation_lifecycle_event(
         self,
@@ -967,6 +1082,176 @@ class SessionRuntime:
             self.session_id,
             message,
         )
+
+    def _append_session_event(
+        self,
+        *,
+        session_id: UUID,
+        event_type: EventType,
+        command_id: str,
+        message: str,
+        target_ids: list[str] | None = None,
+        actor_id: str | None = None,
+        mutation_id: str | None = None,
+        outcome: EventOutcome | None = None,
+    ) -> None:
+        session_state = self._session_states.get(session_id)
+        if session_state is None:
+            return
+
+        event_log = session_state.event_log
+        event_id = f"{command_id}-{event_log.next_sequence:06d}"
+        sequence = event_log.next_sequence
+        occurred_at = datetime.now(timezone.utc)
+        event_targets = list(target_ids or [])
+        if mutation_id is None and outcome is None:
+            event_log.append(
+                SessionEvent(
+                    event_id=event_id,
+                    sequence=sequence,
+                    session_id=session_id,
+                    event_type=event_type,
+                    occurred_at=occurred_at,
+                    actor_id=actor_id,
+                    target_ids=event_targets,
+                    message=message,
+                )
+            )
+            return
+
+        event_log.append(
+            MutationStreamEvent(
+                event_id=event_id,
+                sequence=sequence,
+                session_id=session_id,
+                event_type=event_type,
+                occurred_at=occurred_at,
+                actor_id=actor_id,
+                target_ids=event_targets,
+                message=message,
+                mutation_id=mutation_id,
+                outcome=outcome,
+            )
+        )
+
+    def _mirror_runtime_event_to_event_log(self, runtime_event: _RuntimeEvent) -> None:
+        session_state = self._session_states.get(runtime_event.session_id)
+        if session_state is None:
+            return
+
+        event_type, outcome = self._map_runtime_event_to_event_type(
+            runtime_event.event_type
+        )
+        if event_type is None:
+            return
+
+        target_ids = [runtime_event.edge_id] if runtime_event.edge_id else []
+        mutation_id = runtime_event.command_id if outcome is not None else None
+        self._append_session_event(
+            session_id=runtime_event.session_id,
+            event_type=event_type,
+            command_id=runtime_event.command_id,
+            message=runtime_event.message,
+            target_ids=target_ids,
+            actor_id=runtime_event.command_id,
+            mutation_id=mutation_id,
+            outcome=outcome,
+        )
+
+    def _map_runtime_event_to_event_type(
+        self, event_type: _RuntimeEventType | MutationEventKind | EventType
+    ) -> tuple[EventType | None, EventOutcome | None]:
+        if isinstance(event_type, EventType):
+            return event_type, None
+
+        if event_type is _RuntimeEventType.LOCK_EDGE:
+            return EventType.EDGE_LOCKED, None
+
+        if event_type is _RuntimeEventType.UNLOCK_EDGE:
+            return EventType.EDGE_UNLOCKED, None
+
+        if event_type is MutationEventKind.PROPOSED:
+            return EventType.MUTATION_PROPOSED, None
+
+        if event_type is MutationEventKind.APPLIED:
+            return EventType.MUTATION_APPLIED, EventOutcome.SUCCESS
+
+        if event_type is MutationEventKind.REJECTED:
+            return EventType.MUTATION_REJECTED, EventOutcome.BLOCKED
+
+        if event_type is MutationEventKind.VETOED:
+            return EventType.MUTATION_REJECTED, EventOutcome.BLOCKED
+
+        if event_type is MutationEventKind.COOLED_DOWN:
+            return EventType.MUTATION_REJECTED, EventOutcome.WARN
+
+        if event_type is MutationEventKind.FAILED:
+            return EventType.ERROR_REPORTED, EventOutcome.FAIL
+
+        return None, None
+
+    def _emit_budget_telemetry_events(self) -> None:
+        if (
+            self.session is None
+            or self.session.budget is None
+            or self.session_id is None
+        ):
+            return
+
+        budget = self.session.budget
+        estimated_cost = budget.estimated_cost_usd
+        budget_limit = budget.budget_limit_usd
+        warning_threshold = budget_limit * _RUNTIME_BUDGET_WARNING_RATIO
+
+        if not budget.soft_warning_emitted and estimated_cost >= warning_threshold:
+            budget.soft_warning_emitted = True
+            self._append_runtime_event(
+                event_type=EventType.BUDGET_WARNING,
+                command_id=f"budget-warning-{self._runtime_event_sequence + 1:06d}",
+                session_id=self.session_id,
+                message=(
+                    "budget warning: "
+                    f"estimated_cost_usd={estimated_cost} "
+                    f"budget_limit_usd={budget_limit}"
+                ),
+            )
+
+        if not budget.hard_breach_emitted and estimated_cost >= budget_limit:
+            budget.hard_breach_emitted = True
+            self._append_runtime_event(
+                event_type=EventType.BUDGET_BREACH,
+                command_id=f"budget-breach-{self._runtime_event_sequence + 1:06d}",
+                session_id=self.session_id,
+                message=(
+                    "budget breach: "
+                    f"estimated_cost_usd={estimated_cost} "
+                    f"budget_limit_usd={budget_limit}"
+                ),
+            )
+
+    def _require_inspectable_node(self, node_id: str) -> None:
+        if self.session is None or self.session_id is None:
+            raise ValueError(_NO_ACTIVE_SESSION_ERROR)
+
+        if not self.session_graph.graph.has_node(node_id):
+            raise ValueError(f"node '{node_id}' does not exist")
+
+        node_data = self.session_graph.graph.nodes[node_id]
+        if not isinstance(node_data, dict):
+            raise ValueError(f"node '{node_id}' does not exist")
+
+        graph_node = node_data.get("node")
+        scene_node = node_data.get("scene_node")
+        if not isinstance(graph_node, GraphNode) or not isinstance(
+            scene_node, SceneNode
+        ):
+            raise ValueError(f"node '{node_id}' is missing inspection metadata")
+
+        if (
+            graph_node.session_id != self.session_id
+            or scene_node.session_id != self.session_id
+        ):
+            raise ValueError(f"node '{node_id}' does not belong to the active session")
 
     def _retarget_graph_session_ids(
         self, session_graph: SessionGraph, session_id: UUID

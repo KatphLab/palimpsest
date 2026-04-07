@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -61,6 +62,13 @@ class MutationStreamEvent(SessionEvent):
     mutation_id: _NonEmptyText | None = None
     outcome: EventOutcome | None = None
 
+    @model_validator(mode="after")
+    def _validate_mutation_targets(self) -> MutationStreamEvent:
+        if self.event_type is EventType.MUTATION_APPLIED and not self.target_ids:
+            raise ValueError("applied mutation events require target_ids")
+
+        return self
+
 
 EventRecord = SessionEvent | MutationStreamEvent
 
@@ -82,6 +90,7 @@ class EventStreamEnvelope(StrictBaseModel):
                 )
         else:
             expected_sequence = 1
+            previous_occurred_at: datetime | None = None
             for event in self.events:
                 if event.session_id != self.session_id:
                     raise ValueError(
@@ -93,6 +102,15 @@ class EventStreamEnvelope(StrictBaseModel):
                         "event sequence must increase monotonically without gaps"
                     )
 
+                if (
+                    previous_occurred_at is not None
+                    and event.occurred_at < previous_occurred_at
+                ):
+                    raise ValueError(
+                        "event timestamps must be monotonically non-decreasing"
+                    )
+
+                previous_occurred_at = event.occurred_at
                 expected_sequence += 1
 
             if self.latest_sequence != self.events[-1].sequence:

@@ -1,4 +1,4 @@
-"""Minimal TUI command helpers for topology controls and session switching."""
+"""TUI helpers for command routing and inspection panels."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from textual.timer import Timer
 from textual.widgets import Static
 
+from graph.session_graph import SessionGraph
 from models.commands import (
     CommandResult,
     CommandType,
@@ -19,14 +20,25 @@ from models.commands import (
     UnlockEdgeCommand,
     UnlockEdgePayload,
 )
+from models.common import DriftCategory
+from models.events import EventType, MutationStreamEvent
+from models.graph import GraphNode
+from models.node import SceneNode
+from models.session import Session
+from runtime.event_log import EventLog
 
 __all__ = [
+    "build_entropy_hotspot_lines",
+    "build_mutation_log_lines",
+    "build_node_detail_lines",
     "ShortcutFooterBar",
     "SessionSwitcher",
     "handle_fork_request",
     "handle_lock_request",
     "handle_unlock_request",
 ]
+
+_SECTION_DIVIDER = "-" * 40
 
 
 class ShortcutFooterBar(Static):
@@ -134,6 +146,61 @@ def _command_id(prefix: str) -> str:
     return f"{prefix}-{uuid4().hex}"
 
 
+def _section_lines(title: str) -> list[str]:
+    return [
+        _SECTION_DIVIDER,
+        title,
+    ]
+
+
+def _compact_text(text: str, *, max_length: int = 96) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= max_length:
+        return cleaned
+
+    return f"{cleaned[: max_length - 1].rstrip()}…"
+
+
+def _scene_snapshots(session_graph: SessionGraph) -> list[tuple[GraphNode, SceneNode]]:
+    snapshots: list[tuple[GraphNode, SceneNode]] = []
+    for _, node_data in session_graph.graph.nodes(data=True):
+        if not isinstance(node_data, dict):
+            continue
+
+        graph_node = node_data.get("node")
+        scene_node = node_data.get("scene_node")
+        if isinstance(graph_node, GraphNode) and isinstance(scene_node, SceneNode):
+            snapshots.append((graph_node, scene_node))
+
+    return sorted(
+        snapshots,
+        key=lambda snapshot: (
+            -snapshot[1].entropy_score,
+            snapshot[0].node_id,
+        ),
+    )
+
+
+def _detail_node_id(
+    *,
+    session: Session,
+    session_graph: SessionGraph,
+    node_id: str | None = None,
+) -> str | None:
+    if node_id is not None and session_graph.graph.has_node(node_id):
+        return node_id
+
+    for active_node_id in reversed(session.active_node_ids):
+        if session_graph.graph.has_node(active_node_id):
+            return active_node_id
+
+    snapshots = _scene_snapshots(session_graph)
+    if snapshots:
+        return snapshots[0][0].node_id
+
+    return None
+
+
 def handle_lock_request(runtime: _CommandRuntime, edge_id: str) -> CommandResult:
     """Lock an edge by dispatching a lock-edge command through the runtime."""
 
@@ -171,6 +238,129 @@ def handle_fork_request(
         payload=ForkSessionPayload(fork_label=fork_label),
     )
     return runtime.handle_command(command)
+
+
+def build_entropy_hotspot_lines(
+    *,
+    session_graph: SessionGraph,
+    limit: int = 5,
+) -> list[str]:
+    """Build deterministic entropy hotspot lines for the active graph."""
+
+    lines = _section_lines("🔥 ENTROPY HOTSPOTS")
+    snapshots = _scene_snapshots(session_graph)
+    if not snapshots:
+        lines.extend(["No entropy hotspots found.", ""])
+        return lines
+
+    for index, (graph_node, scene_node) in enumerate(snapshots[:limit], start=1):
+        lines.append(
+            " | ".join(
+                [
+                    f"{index}. {graph_node.node_id}",
+                    f"entropy={scene_node.entropy_score:.2f}",
+                    f"drift={(scene_node.drift_category or DriftCategory.STABLE).value}",
+                    f"activations={scene_node.activation_count}",
+                ]
+            )
+        )
+        lines.append(f"   {_compact_text(graph_node.text)}")
+
+    lines.append("")
+    return lines
+
+
+def build_node_detail_lines(
+    *,
+    session_graph: SessionGraph,
+    session: Session,
+    node_id: str | None = None,
+) -> list[str]:
+    """Build deterministic node detail lines for the focused scene node."""
+
+    lines = _section_lines("🧭 NODE DETAIL")
+    detail_node_id = _detail_node_id(
+        session=session,
+        session_graph=session_graph,
+        node_id=node_id,
+    )
+    if detail_node_id is None:
+        lines.extend(["No inspectable node available.", ""])
+        return lines
+
+    if not session_graph.graph.has_node(detail_node_id):
+        lines.extend(["No inspectable node available.", ""])
+        return lines
+
+    node_data = session_graph.graph.nodes[detail_node_id]
+    if not isinstance(node_data, dict):
+        lines.extend(["No inspectable node available.", ""])
+        return lines
+
+    graph_node = node_data.get("node")
+    scene_node = node_data.get("scene_node")
+    if not isinstance(graph_node, GraphNode) or not isinstance(scene_node, SceneNode):
+        lines.extend(["No inspectable node available.", ""])
+        return lines
+
+    chronology = " -> ".join(session.active_node_ids) or "unknown"
+    lines.extend(
+        [
+            f"node_id={graph_node.node_id}",
+            f"kind={graph_node.node_kind.value}",
+            f"entropy={scene_node.entropy_score:.2f}",
+            f"drift={(scene_node.drift_category or DriftCategory.STABLE).value}",
+            f"activations={scene_node.activation_count}",
+        ]
+    )
+    if scene_node.last_activated_at is not None:
+        lines.append(f"last_activated_at={scene_node.last_activated_at.isoformat()}")
+
+    lines.append(f"chronology={chronology}")
+    lines.append(f"text={_compact_text(graph_node.text, max_length=120)}")
+    lines.append("")
+    return lines
+
+
+def build_mutation_log_lines(
+    *,
+    event_log: EventLog | None,
+    limit: int = 8,
+) -> list[str]:
+    """Build deterministic mutation log lines from the active event stream."""
+
+    lines = _section_lines("🧬 MUTATION LOG")
+    if event_log is None:
+        lines.extend(["No mutation events recorded yet.", ""])
+        return lines
+
+    mutation_events = [
+        event
+        for event in event_log.read().events
+        if event.event_type
+        in {
+            EventType.MUTATION_PROPOSED,
+            EventType.MUTATION_APPLIED,
+            EventType.MUTATION_REJECTED,
+        }
+    ]
+    if not mutation_events:
+        lines.extend(["No mutation events recorded yet.", ""])
+        return lines
+
+    for event in mutation_events[-limit:]:
+        details = [f"{event.sequence}. {event.event_type.value}"]
+        if isinstance(event, MutationStreamEvent) and event.mutation_id is not None:
+            details.append(f"mutation={event.mutation_id}")
+        if event.target_ids:
+            details.append(f"targets={', '.join(event.target_ids)}")
+        if isinstance(event, MutationStreamEvent) and event.outcome is not None:
+            details.append(f"outcome={event.outcome.value}")
+        details.append(_compact_text(event.message, max_length=120))
+        lines.append(" | ".join(details))
+
+    lines.append("")
+    return lines
 
 
 class SessionSwitcher:
