@@ -9,9 +9,10 @@ from textual.containers import Container, ScrollableContainer
 from textual.widgets import Footer, Header, Static
 
 from models.commands import CommandResult
-from models.common import NodeKind, SessionStatus
+from models.common import SessionStatus
 from runtime.session_runtime import SessionRuntime
 from tui.screens import SeedEntryScreen, handle_pause_request, handle_resume_request
+from tui.story_projection import build_story_lines
 from tui.widgets import (
     SessionSwitcher,
     handle_fork_request,
@@ -136,20 +137,12 @@ class SessionApp(App[None]):
             "",
         ]
 
-        # Show the seed text
-        if self.runtime.session and self.runtime.session.seed_text:
-            lines.append("─" * 40)
-            lines.append("🌱 SEED")
-            lines.append(self.runtime.session.seed_text)
-            lines.append("")
-
-        # Show generated scenes from the graph nodes
-        for node_id, node_data in self.runtime.session_graph.graph.nodes(data=True):
-            graph_node = node_data.get("node")
-            if graph_node and graph_node.node_kind == NodeKind.SCENE:
-                lines.append("─" * 40)
-                lines.append("🎭 SCENE")
-                lines.append(graph_node.text)
-                lines.append("")
+        if self.runtime.session is not None:
+            lines.extend(
+                build_story_lines(
+                    session_graph=self.runtime.session_graph,
+                    session=self.runtime.session,
+                )
+            )
 
         return "\n".join(lines)
