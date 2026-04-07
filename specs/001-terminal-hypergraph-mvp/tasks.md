@@ -93,16 +93,16 @@
 
 ### Follow-up Implementation for User Story 2 (Autonomous Mutation Cycle)
 
-- [ ] T048 [P] [US2] Write failing unit tests for LangGraph mutation proposer subgraph with single-node activation in `tests/unit/test_mutation_engine.py`
-- [ ] T049 [P] [US2] Write failing integration test for one-mutation-per-cycle enforcement in `tests/integration/test_single_mutation_cycle.py`
-- [ ] T050 [P] [US2] Write failing integration test for immediate scene generation on accepted `add_node` mutation in `tests/integration/test_add_node_immediate_generation.py`
-- [ ] T051 [P] [US2] Write failing integration test for `prune_branch` full-subgraph removal with protected-state guardrails in `tests/integration/test_prune_branch_subgraph.py`
-- [ ] T052 [P] [US2] Implement dedicated mutation proposer LangGraph subgraph in `src/agents/mutation_engine.py`
-- [ ] T053 [US2] Extend mutation apply path for all action types (`add_node`, `add_edge`, `remove_edge`, `rewrite_node`, `prune_branch`, `no_op`) in `src/agents/mutation_agent.py`
-- [ ] T054 [US2] Extend scene agent APIs for immediate generation after accepted `add_node` and rewrite support in `src/agents/scene_agent.py`
-- [ ] T055 [US2] Implement runtime mutation orchestration loop (propose -> review -> apply -> emit outcome) in `src/runtime/session_runtime.py`
-- [ ] T056 [US2] Implement node cooldown and mutation burst guardrails in runtime loop state in `src/runtime/session_runtime.py`
-- [ ] T057 [US2] Emit mutation lifecycle events (`proposed`, `applied`, `rejected`, `cooled_down`) with monotonic sequencing in `src/runtime/session_runtime.py`
+- [x] T048 [P] [US2] Write failing unit tests for LangGraph mutation proposer subgraph with single-node activation in `tests/unit/test_mutation_engine.py`
+- [x] T049 [P] [US2] Write failing integration test for one-mutation-per-cycle enforcement in `tests/integration/test_single_mutation_cycle.py`
+- [x] T050 [P] [US2] Write failing integration test for immediate scene generation on accepted `add_node` mutation in `tests/integration/test_add_node_immediate_generation.py`
+- [x] T051 [P] [US2] Write failing integration test for `prune_branch` full-subgraph removal with protected-state guardrails in `tests/integration/test_prune_branch_subgraph.py`
+- [x] T052 [P] [US2] Implement dedicated mutation proposer LangGraph subgraph in `src/agents/mutation_engine.py`
+- [x] T053 [US2] Extend mutation apply path for all action types (`add_node`, `add_edge`, `remove_edge`, `rewrite_node`, `prune_branch`, `no_op`) in `src/agents/mutation_agent.py`
+- [x] T054 [US2] Extend scene agent APIs for immediate generation after accepted `add_node` and rewrite support in `src/agents/scene_agent.py`
+- [x] T055 [US2] Implement runtime mutation orchestration loop (propose -> review -> apply -> emit outcome) in `src/runtime/session_runtime.py`
+- [x] T056 [US2] Implement node cooldown and mutation burst guardrails in runtime loop state in `src/runtime/session_runtime.py`
+- [x] T057 [US2] Emit mutation lifecycle events (`proposed`, `applied`, `rejected`, `cooled_down`) with monotonic sequencing in `src/runtime/session_runtime.py`
 
 **Checkpoint**: User Story 2 is independently functional and testable, including continuous autonomous mutation cycles.
 

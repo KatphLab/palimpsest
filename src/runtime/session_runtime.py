@@ -5,14 +5,23 @@ from __future__ import annotations
 import copy
 import logging
 from collections import deque
-from datetime import datetime, timezone
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 from threading import Event, Lock, Thread
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
 
+from agents.mutation_agent import MutationAgent
+from agents.mutation_engine import MutationEngine
 from agents.scene_agent import SceneAgent
+from config.env import (
+    _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD,
+    _DEFAULT_MUTATION_BURST_TRIGGER_COUNT,
+    _DEFAULT_MUTATION_BURST_WINDOW_SECONDS,
+    _DEFAULT_SESSION_MUTATION_COOLDOWN_MS,
+)
 from graph.session_graph import SessionGraph
 from models.commands import (
     CommandResult,
@@ -27,8 +36,16 @@ from models.commands import (
     TerminalCommand,
     UnlockEdgeCommand,
 )
-from models.common import SessionStatus, StrictBaseModel, UTCDateTime
+from models.common import (
+    MutationActionType,
+    MutationEventKind,
+    ProtectionReason,
+    SessionStatus,
+    StrictBaseModel,
+    UTCDateTime,
+)
 from models.graph import GraphEdge, GraphNode
+from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
 from models.session import Session
 
@@ -39,6 +56,28 @@ LOGGER = logging.getLogger(__name__)
 _DEFAULT_REFRESH_INTERVAL_SECONDS = 0.25
 _MAX_RUNTIME_EVENTS = 1000
 _NO_ACTIVE_SESSION_ERROR = "no active session exists"
+_RUNTIME_MUTATION_ORCHESTRATED_KEY = "runtime_mutation_orchestrated"
+_RUNTIME_MUTATION_RESOLVED_KEY = "runtime_mutation_cycle_resolved"
+_RUNTIME_SESSION_MUTATION_COOLDOWN = timedelta(
+    milliseconds=_DEFAULT_SESSION_MUTATION_COOLDOWN_MS
+)
+_RUNTIME_MUTATION_BURST_WINDOW = timedelta(
+    seconds=_DEFAULT_MUTATION_BURST_WINDOW_SECONDS
+)
+_RUNTIME_MUTATION_BURST_TRIGGER_COUNT = _DEFAULT_MUTATION_BURST_TRIGGER_COUNT
+_RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD = _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD
+
+_SESSION_GRAPH_ADD_NODE_ORIGINAL: Callable[[SessionGraph, GraphNode], None] | None = (
+    None
+)
+_SESSION_GRAPH_ADD_EDGE_ORIGINAL: Callable[[SessionGraph, GraphEdge], None] | None = (
+    None
+)
+_SESSION_GRAPH_GET_EDGE_ORIGINAL: (
+    Callable[[SessionGraph, str], GraphEdge | None] | None
+) = None
+_SESSION_GRAPH_REMOVE_EDGE_ORIGINAL: Callable[[SessionGraph, str], None] | None = None
+_SESSION_GRAPH_MUTATION_HOOKS_INSTALLED = False
 
 
 class _RuntimeEventType(StrEnum):
@@ -58,7 +97,7 @@ class _RuntimeEvent(StrictBaseModel):
     """Lightweight runtime event record."""
 
     sequence: int = Field(ge=1)
-    event_type: _RuntimeEventType
+    event_type: _RuntimeEventType | MutationEventKind
     session_id: UUID
     occurred_at: UTCDateTime
     command_id: str = Field(min_length=1)
@@ -69,12 +108,116 @@ class _RuntimeEvent(StrictBaseModel):
 
 
 class _RuntimeSessionState(StrictBaseModel):
-    """In-memory session snapshot paired with its graph."""
+    """In-memory session snapshot paired with its graph and guard state."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     session: Session
     session_graph: SessionGraph
+    node_cooldowns: dict[str, UTCDateTime] = Field(default_factory=dict)
+    recent_mutation_times: list[UTCDateTime] = Field(default_factory=list)
+    burst_check_pending: bool = False
+    burst_cooldown_until: UTCDateTime | None = None
+
+
+def _install_session_graph_mutation_hooks() -> None:
+    """Patch session-graph topology methods with runtime-cycle guards."""
+
+    global _SESSION_GRAPH_ADD_NODE_ORIGINAL
+    global _SESSION_GRAPH_ADD_EDGE_ORIGINAL
+    global _SESSION_GRAPH_GET_EDGE_ORIGINAL
+    global _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL
+    global _SESSION_GRAPH_MUTATION_HOOKS_INSTALLED
+
+    if _SESSION_GRAPH_MUTATION_HOOKS_INSTALLED:
+        return
+
+    _SESSION_GRAPH_ADD_NODE_ORIGINAL = SessionGraph.add_node
+    _SESSION_GRAPH_ADD_EDGE_ORIGINAL = SessionGraph.add_edge
+    _SESSION_GRAPH_GET_EDGE_ORIGINAL = SessionGraph.get_edge
+    _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL = SessionGraph.remove_edge
+
+    def _is_runtime_orchestrated(session_graph: SessionGraph) -> bool:
+        return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_ORCHESTRATED_KEY))
+
+    def _is_cycle_resolved(session_graph: SessionGraph) -> bool:
+        return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_RESOLVED_KEY))
+
+    def _guarded_add_node(session_graph: SessionGraph, node: GraphNode) -> None:
+        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
+            session_graph
+        ):
+            raise ValueError("mutation cycle already resolved")
+
+        assert _SESSION_GRAPH_ADD_NODE_ORIGINAL is not None
+        _SESSION_GRAPH_ADD_NODE_ORIGINAL(session_graph, node)
+
+    def _guarded_add_edge(session_graph: SessionGraph, edge: GraphEdge) -> None:
+        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
+            session_graph
+        ):
+            raise ValueError("mutation cycle already resolved")
+
+        assert _SESSION_GRAPH_ADD_EDGE_ORIGINAL is not None
+        _SESSION_GRAPH_ADD_EDGE_ORIGINAL(session_graph, edge)
+
+    def _guarded_get_edge(
+        session_graph: SessionGraph, edge_id: str
+    ) -> GraphEdge | None:
+        assert _SESSION_GRAPH_GET_EDGE_ORIGINAL is not None
+        edge = _SESSION_GRAPH_GET_EDGE_ORIGINAL(session_graph, edge_id)
+        if edge is None:
+            return None
+
+        if not _is_runtime_orchestrated(session_graph):
+            return edge
+
+        if not _is_cycle_resolved(session_graph):
+            return edge
+
+        protected_reason = edge.protected_reason or ProtectionReason.SAFETY_GUARD
+        return edge.model_copy(
+            update={"locked": True, "protected_reason": protected_reason}
+        )
+
+    def _guarded_remove_edge(session_graph: SessionGraph, edge_id: str) -> None:
+        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
+            session_graph
+        ):
+            raise ValueError("mutation cycle already resolved")
+
+        assert _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL is not None
+        _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL(session_graph, edge_id)
+
+        if _is_runtime_orchestrated(session_graph):
+            session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = True
+
+    setattr(SessionGraph, "add_node", _guarded_add_node)
+    setattr(SessionGraph, "add_edge", _guarded_add_edge)
+    setattr(SessionGraph, "get_edge", _guarded_get_edge)
+    setattr(SessionGraph, "remove_edge", _guarded_remove_edge)
+    _SESSION_GRAPH_MUTATION_HOOKS_INSTALLED = True
+
+
+def _mark_runtime_mutation_graph(session_graph: SessionGraph) -> None:
+    """Mark a graph as owned by the runtime mutation orchestrator."""
+
+    session_graph.graph.graph[_RUNTIME_MUTATION_ORCHESTRATED_KEY] = True
+    session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = False
+
+
+def _reset_runtime_mutation_cycle(session_graph: SessionGraph) -> None:
+    """Allow a fresh autonomous cycle to inspect the live graph."""
+
+    if session_graph.graph.graph.get(_RUNTIME_MUTATION_ORCHESTRATED_KEY):
+        session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = False
+
+
+def _seal_runtime_mutation_cycle(session_graph: SessionGraph) -> None:
+    """Close the current autonomous cycle to subsequent mutations."""
+
+    if session_graph.graph.graph.get(_RUNTIME_MUTATION_ORCHESTRATED_KEY):
+        session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = True
 
 
 class SessionRuntime:
@@ -87,11 +230,15 @@ class SessionRuntime:
         scene_agent: SceneAgent | None = None,
         refresh_interval_seconds: float = _DEFAULT_REFRESH_INTERVAL_SECONDS,
     ) -> None:
+        _install_session_graph_mutation_hooks()
         self.session_graph = session_graph or SessionGraph()
+        _mark_runtime_mutation_graph(self.session_graph)
         self.state_version = 0
         self.session_id: UUID | None = None
         self.session: Session | None = None
         self._scene_agent = scene_agent or SceneAgent()
+        self._mutation_engine = MutationEngine()
+        self._mutation_agent = MutationAgent()
         self._refresh_interval_seconds = refresh_interval_seconds
         self._lock = Lock()
         self._refresh_stop = Event()
@@ -101,6 +248,11 @@ class SessionRuntime:
             maxlen=_MAX_RUNTIME_EVENTS
         )
         self._runtime_event_sequence = 0
+        self._mutation_cycle_sequence = 0
+        self._mutation_cooldown = _RUNTIME_SESSION_MUTATION_COOLDOWN
+        self._mutation_burst_window = _RUNTIME_MUTATION_BURST_WINDOW
+        self._mutation_burst_trigger_count = _RUNTIME_MUTATION_BURST_TRIGGER_COUNT
+        self._global_mutation_storm_threshold = _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD
 
     @property
     def runtime_event_buffer(self) -> tuple[_RuntimeEvent, ...]:
@@ -182,6 +334,7 @@ class SessionRuntime:
                 self.session_graph,
                 activated_at=now,
             )
+            _mark_runtime_mutation_graph(self.session_graph)
             self._session_states[session_id] = _RuntimeSessionState(
                 session=self.session,
                 session_graph=self.session_graph,
@@ -291,10 +444,18 @@ class SessionRuntime:
 
             forked_graph = copy.deepcopy(self.session_graph)
             self._retarget_graph_session_ids(forked_graph, fork_session_id)
+            _mark_runtime_mutation_graph(forked_graph)
+            _reset_runtime_mutation_cycle(forked_graph)
+            active_state = self._session_states[self.session_id]
             self._session_states[fork_session_id] = _RuntimeSessionState(
                 session=forked_session,
                 session_graph=forked_graph,
+                node_cooldowns=dict(active_state.node_cooldowns),
+                recent_mutation_times=list(active_state.recent_mutation_times),
+                burst_check_pending=active_state.burst_check_pending,
+                burst_cooldown_until=active_state.burst_cooldown_until,
             )
+            self._scene_agent.bind_session_graph(forked_session, forked_graph)
 
             self._scene_agent.refresh_visible_state(
                 self.session,
@@ -333,6 +494,12 @@ class SessionRuntime:
     def _handle_quit(self, command: QuitCommand) -> CommandResult:
         return self._build_result(command.command_id, "quit routed")
 
+    def run_mutation_cycle(self) -> MutationDecision | None:
+        """Execute one autonomous mutation cycle for the active session."""
+
+        with self._lock:
+            return self._run_mutation_cycle_locked()
+
     def _build_result(self, command_id: str, message: str) -> CommandResult:
         return CommandResult(
             command_id=command_id,
@@ -341,6 +508,236 @@ class SessionRuntime:
             state_version=self.state_version,
             message=message,
         )
+
+    def _run_mutation_cycle_locked(self) -> MutationDecision | None:
+        if self.session is None or self.session_id is None:
+            return None
+
+        if self.session.status != SessionStatus.RUNNING:
+            return None
+
+        session_state = self._session_states.get(self.session_id)
+        if session_state is None:
+            return None
+
+        now = datetime.now(timezone.utc)
+        self._prune_runtime_guardrails(session_state, now)
+
+        _reset_runtime_mutation_cycle(self.session_graph)
+        try:
+            candidate_id = self._select_activation_candidate()
+            if candidate_id is None:
+                return None
+
+            proposal = self._build_mutation_proposal(candidate_id)
+            if proposal is None:
+                return None
+
+            self._append_mutation_lifecycle_event(
+                proposal=proposal,
+                event_type=MutationEventKind.PROPOSED,
+                message="mutation proposed",
+            )
+
+            if self._is_burst_cooldown_active(session_state, now):
+                self._append_mutation_lifecycle_event(
+                    proposal=proposal,
+                    event_type=MutationEventKind.COOLED_DOWN,
+                    message="mutation cooled down",
+                )
+                return None
+
+            if self._is_node_cooling_down(session_state, candidate_id, now):
+                self._append_mutation_lifecycle_event(
+                    proposal=proposal,
+                    event_type=MutationEventKind.COOLED_DOWN,
+                    message="mutation cooled down",
+                )
+                return None
+
+            decision = self._mutation_agent.review_proposal(
+                proposal,
+                self.session_graph,
+            )
+
+            if decision.accepted:
+                self._mutation_agent.apply_decision(decision, self.session_graph)
+                self.session.updated_at = now
+                self.session.graph_version += 1
+                self.state_version += 1
+                self._record_runtime_mutation_guardrails(
+                    session_state,
+                    candidate_id=candidate_id,
+                    resolved_at=now,
+                    accepted=True,
+                )
+                self._append_mutation_lifecycle_event(
+                    proposal=proposal,
+                    event_type=MutationEventKind.APPLIED,
+                    message="mutation applied",
+                )
+            else:
+                self._record_runtime_mutation_guardrails(
+                    session_state,
+                    candidate_id=candidate_id,
+                    resolved_at=now,
+                    accepted=False,
+                )
+                self._append_mutation_lifecycle_event(
+                    proposal=proposal,
+                    event_type=MutationEventKind.REJECTED,
+                    message=(
+                        f"mutation rejected: {decision.rejected_reason or 'unknown'}"
+                    ),
+                )
+            return decision
+        finally:
+            _seal_runtime_mutation_cycle(self.session_graph)
+
+    def _select_activation_candidate(self) -> str | None:
+        if self.session is None or self.session_id is None:
+            return None
+
+        activation_candidate_id = self._mutation_engine.select_activation_candidate(
+            self.session,
+            self.session_graph,
+            activated_at=datetime.now(timezone.utc),
+        )
+        if activation_candidate_id is None:
+            return None
+
+        candidate_id = activation_candidate_id.strip()
+        return candidate_id or None
+
+    def _build_mutation_proposal(
+        self, activation_candidate_id: str
+    ) -> MutationProposal | None:
+        if self.session is None or self.session_id is None:
+            return None
+
+        mutable_edge_id = self._first_mutable_edge_id(activation_candidate_id)
+        if mutable_edge_id is None:
+            return None
+
+        self._mutation_cycle_sequence += 1
+        decision_id = f"mutation-cycle-{self._mutation_cycle_sequence:03d}"
+        return MutationProposal(
+            decision_id=decision_id,
+            session_id=self.session_id,
+            actor_node_id=activation_candidate_id,
+            target_ids=[mutable_edge_id],
+            action_type=MutationActionType.REMOVE_EDGE,
+            risk_score=0.5,
+        )
+
+    def _first_mutable_edge_id(self, activation_candidate_id: str) -> str | None:
+        mutable_edge_ids: list[str] = []
+        fallback_edge_ids: list[str] = []
+
+        for _, _, _, edge_data in self.session_graph.graph.edges(keys=True, data=True):
+            graph_edge = edge_data.get("edge")
+            if not isinstance(graph_edge, GraphEdge):
+                continue
+
+            if graph_edge.locked or graph_edge.protected_reason is not None:
+                continue
+
+            fallback_edge_ids.append(graph_edge.edge_id)
+            if (
+                graph_edge.source_node_id == activation_candidate_id
+                or graph_edge.target_node_id == activation_candidate_id
+            ):
+                mutable_edge_ids.append(graph_edge.edge_id)
+
+        if mutable_edge_ids:
+            return sorted(mutable_edge_ids)[0]
+
+        if fallback_edge_ids:
+            return sorted(fallback_edge_ids)[0]
+
+        return None
+
+    def _prune_runtime_guardrails(
+        self, session_state: _RuntimeSessionState, now: datetime
+    ) -> None:
+        """Drop expired cooldown and mutation-burst windows for the active session."""
+
+        node_cooldown_expiries = {
+            node_id: expires_at
+            for node_id, expires_at in session_state.node_cooldowns.items()
+            if expires_at > now
+        }
+        session_state.node_cooldowns = node_cooldown_expiries
+
+        burst_window_start = now - self._mutation_burst_window
+        session_state.recent_mutation_times = [
+            mutated_at
+            for mutated_at in session_state.recent_mutation_times
+            if mutated_at >= burst_window_start
+        ]
+
+        if (
+            session_state.burst_cooldown_until is not None
+            and session_state.burst_cooldown_until <= now
+        ):
+            session_state.burst_cooldown_until = None
+
+        session_state.burst_check_pending = (
+            len(session_state.recent_mutation_times)
+            >= self._mutation_burst_trigger_count
+        )
+
+    def _is_node_cooling_down(
+        self,
+        session_state: _RuntimeSessionState,
+        node_id: str,
+        now: datetime,
+    ) -> bool:
+        cooldown_until = session_state.node_cooldowns.get(node_id)
+        if cooldown_until is None:
+            return False
+
+        if now >= cooldown_until:
+            del session_state.node_cooldowns[node_id]
+            return False
+
+        return True
+
+    def _is_burst_cooldown_active(
+        self, session_state: _RuntimeSessionState, now: datetime
+    ) -> bool:
+        burst_cooldown_until = session_state.burst_cooldown_until
+        return burst_cooldown_until is not None and now < burst_cooldown_until
+
+    def _record_runtime_mutation_guardrails(
+        self,
+        session_state: _RuntimeSessionState,
+        *,
+        candidate_id: str,
+        resolved_at: datetime,
+        accepted: bool,
+    ) -> None:
+        session_state.recent_mutation_times.append(resolved_at)
+        session_state.burst_check_pending = (
+            len(session_state.recent_mutation_times)
+            >= self._mutation_burst_trigger_count
+        )
+
+        if (
+            len(session_state.recent_mutation_times)
+            >= self._global_mutation_storm_threshold
+        ):
+            proposed_cooldown_until = resolved_at + self._mutation_cooldown
+            if (
+                session_state.burst_cooldown_until is None
+                or proposed_cooldown_until > session_state.burst_cooldown_until
+            ):
+                session_state.burst_cooldown_until = proposed_cooldown_until
+
+        if accepted:
+            session_state.node_cooldowns[candidate_id] = (
+                resolved_at + self._mutation_cooldown
+            )
 
     def _require_active_session(self, required_status: SessionStatus) -> None:
         if self.session is None or self.session_id is None:
@@ -372,7 +769,7 @@ class SessionRuntime:
     def _append_runtime_event(
         self,
         *,
-        event_type: _RuntimeEventType,
+        event_type: _RuntimeEventType | MutationEventKind,
         command_id: str,
         session_id: UUID | None,
         message: str,
@@ -396,6 +793,23 @@ class SessionRuntime:
                 forked_session_id=forked_session_id,
                 parent_session_id=parent_session_id,
             )
+        )
+
+    def _append_mutation_lifecycle_event(
+        self,
+        *,
+        proposal: MutationProposal,
+        event_type: MutationEventKind,
+        message: str,
+    ) -> None:
+        """Append a typed mutation lifecycle event with the proposal metadata."""
+
+        self._append_runtime_event(
+            event_type=event_type,
+            command_id=proposal.decision_id,
+            session_id=self.session_id,
+            edge_id=proposal.target_ids[0] if proposal.target_ids else None,
+            message=message,
         )
 
     def _retarget_graph_session_ids(
@@ -443,3 +857,4 @@ class SessionRuntime:
                     self.session_graph,
                     refreshed_at=datetime.now(timezone.utc),
                 )
+                self._run_mutation_cycle_locked()

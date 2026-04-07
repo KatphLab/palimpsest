@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
+from uuid import UUID
+from weakref import WeakKeyDictionary
 
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
@@ -34,6 +37,14 @@ from models.session import SceneGenerationProvider, Session
 __all__ = ["SceneAgent"]
 
 LOGGER = logging.getLogger(__name__)
+
+_SESSION_GRAPH_BINDINGS: WeakKeyDictionary[SessionGraph, _SessionGraphBinding] = (
+    WeakKeyDictionary()
+)
+_SESSION_GRAPH_EDGE_PATCHED = False
+_ORIGINAL_SESSION_GRAPH_ADD_EDGE: Callable[[SessionGraph, GraphEdge], None] | None = (
+    None
+)
 
 
 class OpenAIChatSceneGenerationProvider(SceneGenerationProvider):
@@ -78,11 +89,21 @@ class _BootstrapStateModel(StrictBaseModel):
     first_scene_text: str | None = None
 
 
+class _SessionGraphBinding(StrictBaseModel):
+    """Live session graph binding for scene-generation hooks."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    scene_agent: SceneAgent
+    session: Session
+
+
 class SceneAgent:
     """Build and refresh the initial live narrative scene graph."""
 
     def __init__(self, provider: SceneGenerationProvider | None = None) -> None:
         self._provider = provider
+        self._ensure_session_graph_hooks()
         self._bootstrap_graph = self._build_bootstrap_graph()
 
     def bootstrap_session(
@@ -103,6 +124,8 @@ class SceneAgent:
         final_state = _BootstrapStateModel.model_validate(
             self._bootstrap_graph.invoke(initial_state)
         )
+
+        self.bind_session_graph(session, session_graph)
 
         if final_state.seed_node_id is None or final_state.scene_node_id is None:
             raise RuntimeError("scene bootstrap did not produce node identifiers")
@@ -134,6 +157,124 @@ class SceneAgent:
             node_data["updated_at"] = event_at
             node_data["last_refreshed_at"] = event_at
             node_data["sampled_at"] = event_at
+
+    def bind_session_graph(self, session: Session, session_graph: SessionGraph) -> None:
+        """Register a live session graph for mutation-aware generation hooks."""
+
+        self._ensure_session_graph_hooks()
+        _SESSION_GRAPH_BINDINGS[session_graph] = _SessionGraphBinding(
+            scene_agent=self,
+            session=session,
+        )
+
+    def generate_followup_scene(
+        self,
+        session: Session,
+        session_graph: SessionGraph,
+        *,
+        source_node_id: str,
+        target_node_id: str,
+        generated_at: UTCDateTime | None = None,
+    ) -> SceneNode:
+        """Generate the next scene text for a newly accepted branch node."""
+
+        event_at = generated_at or datetime.now(timezone.utc)
+        source_node = self._require_graph_node(session_graph, source_node_id)
+        target_node = self._require_graph_node(session_graph, target_node_id)
+        existing_scene_node = self._scene_node_for(session_graph, target_node_id)
+        seed_text = source_node.text
+        generated_text = self._generation_provider().generate_first_scene(
+            seed_text=seed_text
+        )
+
+        updated_scene_node = self._store_scene_text(
+            session_graph,
+            target_node_id=target_node.node_id,
+            graph_node=target_node,
+            scene_node=existing_scene_node,
+            text=generated_text,
+            updated_at=event_at,
+            session_id=session.session_id,
+            node_kind=target_node.node_kind,
+        )
+        self._promote_active_node(session, target_node.node_id)
+        self._touch_session(session, updated_at=event_at)
+        session.graph_version += 1
+        return updated_scene_node
+
+    def generate_scene_after_add_node(
+        self,
+        session: Session,
+        session_graph: SessionGraph,
+        *,
+        source_node_id: str,
+        target_node_id: str,
+        generated_at: UTCDateTime | None = None,
+    ) -> SceneNode:
+        """Alias for generating a follow-up scene after an accepted add-node."""
+
+        return self.generate_followup_scene(
+            session,
+            session_graph,
+            source_node_id=source_node_id,
+            target_node_id=target_node_id,
+            generated_at=generated_at,
+        )
+
+    def rewrite_scene_node(
+        self,
+        session: Session,
+        session_graph: SessionGraph,
+        *,
+        node_id: str,
+        rewrite_instruction: str | None = None,
+        rewritten_at: UTCDateTime | None = None,
+    ) -> SceneNode:
+        """Rewrite an existing scene node in place using the generation provider."""
+
+        event_at = rewritten_at or datetime.now(timezone.utc)
+        graph_node = self._require_graph_node(session_graph, node_id)
+        existing_scene_node = self._scene_node_for(session_graph, node_id)
+        prompt_seed = graph_node.text
+        if rewrite_instruction is not None:
+            prompt_seed = f"{rewrite_instruction}: {prompt_seed}"
+
+        rewritten_text = self._generation_provider().generate_first_scene(
+            seed_text=prompt_seed
+        )
+        updated_scene_node = self._store_scene_text(
+            session_graph,
+            target_node_id=node_id,
+            graph_node=graph_node,
+            scene_node=existing_scene_node,
+            text=rewritten_text,
+            updated_at=event_at,
+            session_id=session.session_id,
+            node_kind=graph_node.node_kind,
+        )
+        self._promote_active_node(session, node_id)
+        self._touch_session(session, updated_at=event_at)
+        session.graph_version += 1
+        return updated_scene_node
+
+    def rewrite_node(
+        self,
+        session: Session,
+        session_graph: SessionGraph,
+        *,
+        node_id: str,
+        rewrite_instruction: str | None = None,
+        rewritten_at: UTCDateTime | None = None,
+    ) -> SceneNode:
+        """Alias for rewriting a node through the scene agent."""
+
+        return self.rewrite_scene_node(
+            session,
+            session_graph,
+            node_id=node_id,
+            rewrite_instruction=rewrite_instruction,
+            rewritten_at=rewritten_at,
+        )
 
     def _build_bootstrap_graph(self) -> CompiledStateGraph[_BootstrapStateModel]:
         builder = StateGraph(_BootstrapStateModel)
@@ -261,6 +402,123 @@ class SceneAgent:
 
         return self._provider
 
+    def _ensure_session_graph_hooks(self) -> None:
+        _ensure_session_graph_add_edge_hook()
+
+    def _handle_session_graph_edge_added(
+        self,
+        session: Session,
+        session_graph: SessionGraph,
+        *,
+        edge: GraphEdge,
+    ) -> None:
+        if edge.relation_type != RelationType.BRANCHES_FROM:
+            return
+
+        if len(session.active_node_ids) < 2:
+            return
+
+        LOGGER.debug(
+            "generating follow-up scene for branch edge %s in session %s",
+            edge.edge_id,
+            session.session_id,
+        )
+        self.generate_scene_after_add_node(
+            session,
+            session_graph,
+            source_node_id=edge.source_node_id,
+            target_node_id=edge.target_node_id,
+        )
+
+    def _require_graph_node(
+        self, session_graph: SessionGraph, node_id: str
+    ) -> GraphNode:
+        node_data = self._node_data(session_graph, node_id)
+        if node_data is None:
+            raise ValueError(f"node '{node_id}' does not exist")
+
+        node = node_data.get("node")
+        if not isinstance(node, GraphNode):
+            raise ValueError(f"node '{node_id}' is missing graph metadata")
+
+        return node
+
+    def _node_data(
+        self, session_graph: SessionGraph, node_id: str
+    ) -> dict[str, object] | None:
+        if not session_graph.graph.has_node(node_id):
+            return None
+
+        node_data = session_graph.graph.nodes[node_id]
+        return node_data if isinstance(node_data, dict) else None
+
+    def _scene_node_for(
+        self, session_graph: SessionGraph, node_id: str
+    ) -> SceneNode | None:
+        node_data = self._node_data(session_graph, node_id)
+        if node_data is None:
+            return None
+
+        scene_node = node_data.get("scene_node")
+        return scene_node if isinstance(scene_node, SceneNode) else None
+
+    def _store_scene_text(
+        self,
+        session_graph: SessionGraph,
+        *,
+        target_node_id: str,
+        graph_node: GraphNode,
+        scene_node: SceneNode | None,
+        text: str,
+        updated_at: UTCDateTime,
+        session_id: UUID,
+        node_kind: NodeKind,
+    ) -> SceneNode:
+        updated_graph_node = graph_node.model_copy(update={"text": text})
+        if scene_node is None:
+            updated_scene_node = SceneNode(
+                node_id=target_node_id,
+                session_id=session_id,
+                node_kind=node_kind,
+                text=text,
+                entropy_score=0.35,
+                activation_count=1,
+                last_activated_at=updated_at,
+            )
+        else:
+            updated_scene_node = scene_node.model_copy(
+                update={"text": text, "last_activated_at": updated_at}
+            )
+
+        session_graph.graph.nodes[target_node_id].update(
+            {
+                "node": updated_graph_node,
+                "scene_node": updated_scene_node,
+                "updated_at": updated_at,
+                "last_refreshed_at": updated_at,
+                "sampled_at": updated_at,
+            }
+        )
+        return updated_scene_node
+
+    def _touch_session(self, session: Session, *, updated_at: UTCDateTime) -> None:
+        session.updated_at = updated_at
+        if session.coherence is not None:
+            session.coherence.sampled_at = updated_at
+
+        if session.termination is not None:
+            session.termination.last_updated_at = updated_at
+
+    def _promote_active_node(self, session: Session, node_id: str) -> None:
+        session.active_node_ids = [
+            node_id,
+            *[
+                active_id
+                for active_id in session.active_node_ids
+                if active_id != node_id
+            ],
+        ]
+
     def _build_coherence_snapshot(
         self,
         *,
@@ -316,3 +574,35 @@ class SceneAgent:
 
     def _seed_edge_id(self, seed_node_id: str, scene_node_id: str) -> str:
         return f"{seed_node_id}->{scene_node_id}"
+
+
+def _ensure_session_graph_add_edge_hook() -> None:
+    global _SESSION_GRAPH_EDGE_PATCHED
+    global _ORIGINAL_SESSION_GRAPH_ADD_EDGE
+
+    if _SESSION_GRAPH_EDGE_PATCHED:
+        return
+
+    _ORIGINAL_SESSION_GRAPH_ADD_EDGE = SessionGraph.add_edge
+
+    def _add_edge_with_scene_generation(
+        session_graph: SessionGraph, edge: GraphEdge
+    ) -> None:
+        assert _ORIGINAL_SESSION_GRAPH_ADD_EDGE is not None
+        _ORIGINAL_SESSION_GRAPH_ADD_EDGE(session_graph, edge)
+
+        binding = _SESSION_GRAPH_BINDINGS.get(session_graph)
+        if binding is None:
+            return
+
+        binding.scene_agent._handle_session_graph_edge_added(
+            binding.session,
+            session_graph,
+            edge=edge,
+        )
+
+    setattr(SessionGraph, "add_edge", _add_edge_with_scene_generation)
+    _SESSION_GRAPH_EDGE_PATCHED = True
+
+
+_SessionGraphBinding.model_rebuild()
