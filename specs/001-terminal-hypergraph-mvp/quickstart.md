@@ -1,5 +1,7 @@
 # Quickstart: Terminal Self-Editing Narrative MVP
 
+**Spec Version**: 1.1.0
+
 ## 1) Set up the environment
 
 ```bash
@@ -18,7 +20,6 @@ OPENAI_MODEL=gpt-4.1-mini
 LOG_LEVEL=INFO
 SESSION_BUDGET_USD=5.00
 SESSION_COHERENCE_TARGET=0.80
-SESSION_REFRESH_MS=250
 SESSION_MUTATION_COOLDOWN_MS=30000
 SESSION_MAX_SEED_LENGTH=280
 ```
@@ -36,8 +37,8 @@ Recommended notes:
 uv run python src/main.py
 ```
 
-The terminal UI should start, accept a seed, and render live graph updates once the runtime is implemented.
-Autonomous mutation should run continuously while the session is active, with one LLM-selected node activation and at most one mutation resolution per cycle.
+The terminal UI should start, accept a seed, and render the session story-flow panel.
+Mutation progression is cycle-based: press `c` (Continue) to advance one mutation cycle with one selected activation and at most one mutation resolution.
 
 ## 4) Core user flows
 
@@ -60,12 +61,13 @@ Autonomous mutation should run continuously while the session is active, with on
 3. Trigger additional mutation cycles and confirm the edge remains intact.
 4. Unlock it if you want the runtime to consider it mutable again.
 
-### Observe autonomous mutation behavior
+### Step mutation cycles and inspect behavior
 
 1. Start a running session and keep it active for several cycles.
-2. Confirm one node activation event per cycle and at most one mutation decision outcome per cycle.
-3. Confirm accepted `add_node` mutations produce scene text immediately.
-4. Confirm `prune_branch` removes the targeted branch subgraph while preserving seed/protected state.
+2. Press `c` for each cycle you want to execute.
+3. Confirm one node activation event per cycle and at most one mutation decision outcome per cycle.
+4. Confirm accepted `add_node` mutations produce scene text immediately.
+5. Confirm `prune_branch` removes the targeted branch subgraph while preserving seed/protected state.
 
 ### Fork a session
 
@@ -93,9 +95,9 @@ uv run pytest
 Useful targeted checks:
 
 ```bash
-uv run pytest tests/unit/test_models.py -q
-uv run pytest tests/unit/test_graph.py -q
-uv run pytest tests/integration/test_tui_session_flow.py -q
+uv run pytest tests/unit/test_models_base.py -q
+uv run pytest tests/unit/test_tui_story_projection.py -q
+uv run pytest tests/integration/test_live_story_flow_rendering.py -q
 ```
 
 ## 6) What to expect from failures

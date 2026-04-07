@@ -1,9 +1,12 @@
 # Terminal Command Contract
 
+**Spec Version**: 1.1.0
+
 Boundary: Textual UI or CLI command input -> session runtime command handler.
 
 All commands are Pydantic models. The runtime must reject any payload that includes extra fields, omits required fields, or contains invalid IDs.
 Autonomous mutation is runtime-driven and is not initiated by a direct terminal mutation command in MVP.
+Cycle advancement currently occurs through the TUI continue action (`c`) calling runtime APIs directly, not through the command envelope.
 
 ## Pydantic shapes
 

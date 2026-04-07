@@ -2,23 +2,24 @@
 
 **Feature Branch**: `001-terminal-hypergraph-mvp`
 **Created**: 2026-04-06
+**Spec Version**: 1.1.0
 **Status**: Draft
 **Input**: User description: `@docs/prd.md`
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Seed and Observe Live Narrative Growth (Priority: P1)
+### User Story 1 - Seed and Step Through Narrative Growth (Priority: P1)
 
-As a narrative researcher, I can enter a short story seed in the terminal and immediately observe the system grow a connected narrative graph in real time.
+As a narrative researcher, I can enter a short story seed in the terminal and step the simulation cycle-by-cycle while the story-flow panel updates.
 
-**Why this priority**: This is the core value of the product; without live autonomous narrative growth from a seed, no other workflow is meaningful.
+**Why this priority**: This is the core value of the product; without seed-to-story growth from a seed, no other workflow is meaningful.
 
-**Independent Test**: This can be fully tested by starting a new session, submitting one seed, and confirming that live graph updates continue without manual pruning.
+**Independent Test**: This can be fully tested by starting a new session, submitting one seed, pressing continue to advance cycles, and confirming the panel reflects ordered story growth.
 
 **Acceptance Scenarios**:
 
 1. **Given** a user has opened the terminal runtime, **When** they submit a valid seed, **Then** the first scene appears within 2 seconds and the session enters active simulation.
-2. **Given** an active simulation, **When** the runtime updates, **Then** the user sees refreshed graph state at least every 500 ms and can identify active nodes.
+2. **Given** an active simulation, **When** the user triggers the continue control, **Then** the runtime advances exactly one cycle and the panel refresh reflects the updated narrative flow.
 3. **Given** an active simulation, **When** the user pauses and resumes, **Then** progression halts and restarts without losing current session state.
 
 ---
@@ -71,7 +72,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 
 - **FR-001**: The system MUST allow users to start a session by submitting a seed up to 280 characters.
 - **FR-002**: The system MUST create the initial scene representation within 2 seconds of valid seed submission.
-- **FR-003**: The system MUST provide live session state updates at least every 500 ms while running.
+- **FR-003**: The system MUST provide an explicit continue control that advances exactly one session cycle and refreshes the active-session panel.
 - **FR-004**: The system MUST allow users to pause and resume simulation without losing current session state.
 - **FR-005**: Users MUST be able to lock and unlock narrative relationships during an active session.
 - **FR-006**: The system MUST prevent removal of locked relationships during autonomous mutation handling.
@@ -89,6 +90,8 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **FR-018**: The system MUST resolve at most one autonomous mutation per cycle (propose -> safety filter -> applied/rejected/cooled_down terminal outcome).
 - **FR-019**: The system MUST generate scene content immediately when an `add_node` mutation is accepted.
 - **FR-020**: The system MUST interpret `prune_branch` as removal of an entire targeted subgraph while preserving seed-protected and otherwise protected graph state.
+- **FR-021**: The TUI active-session panel MUST render deterministic narrative projection sections for seed, ordered story flow, and detached scenes.
+- **FR-022**: The active-session panel MUST support overflow scrolling without forced auto-scroll jumps during refresh.
 
 ### Constitution Alignment _(mandatory)_
 
@@ -122,8 +125,8 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 ## Assumptions
 
 - Sessions are single-user, ephemeral, and do not require cross-session persistence for this MVP.
-- Users run the feature in a terminal environment that supports interactive command input and periodic state refresh.
+- Users run the feature in a terminal environment that supports interactive command input and explicit continue-cycle controls.
 - Users need export artifacts for analysis, but durable user accounts and collaboration are out of scope.
 - Command-driven controls for lock, fork, inspect, pause/resume, and export are available within the same terminal workflow.
 - The product team will define and maintain coherence and entropy evaluation rubrics consistently across validation runs.
-- A standard run means one foreground session started with the documented defaults in plan.md, one valid seed, and no manual intervention after startup.
+- A standard run means one foreground session started with the documented defaults in plan.md, one valid seed, and explicit user-issued cycle advancement during observation.

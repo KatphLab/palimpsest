@@ -4,7 +4,9 @@
 
 **Goal:** Build a terminal-first MVP where a Textual TUI (with plain CLI fallback) drives a LangGraph-orchestrated, NetworkX-backed narrative runtime that accepts a seed, grows a live graph, and supports pause/resume, lock/unlock, fork, inspect, export, and telemetry controls.
 
-**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and a dedicated mutation-proposer subgraph; and a Textual UI for live interaction and monitoring. The continuous mutation loop is serialized to one LLM-selected node activation and one mutation resolution per cycle. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
+**Spec Version:** 1.1.0
+
+**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and a dedicated mutation-proposer subgraph; and a Textual UI for live interaction and monitoring. Mutation is serialized to one activation and one mutation resolution per cycle and is advanced explicitly through the TUI continue action. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
 
 **Tech Stack:** Python 3.12, uv, Pydantic 2.12, NetworkX 3.6, LangGraph 1.1, langchain-openai 1.1, Textual, pytest.
 
@@ -12,7 +14,7 @@
 
 ## Summary
 
-Implement a terminal MVP that turns a short story seed into a live narrative graph, updates the view at least every 500 ms, enforces graph safety rules, and exposes entropy, mutation logs, and JSON export.
+Implement a terminal MVP that turns a short story seed into a live narrative graph, advances one cycle at a time through explicit continue actions, enforces graph safety rules, and exposes entropy, mutation logs, and JSON export.
 
 ## Technical Context
 
@@ -22,7 +24,7 @@ Implement a terminal MVP that turns a short story seed into a live narrative gra
 **Testing:** pytest
 **Target Platform:** Interactive terminal runtime on a local developer machine
 **Project Type:** Terminal / TUI application
-**Performance Goals:** Initial scene within 2 seconds; live refresh every 500 ms; entropy-breach handling within 5 seconds; median session cost below $5
+**Performance Goals:** Initial scene within 2 seconds; continue-action panel refresh in the same interaction loop; entropy-breach handling within 5 seconds; median session cost below $5
 **Constraints:** Session-scoped only; no durable user accounts; no plain-dict contracts; all data classes and payloads must be typed Pydantic models; graph mutations must be bounded and traceable
 **Scale/Scope:** Single-user MVP with multiple in-memory sessions allowed (original plus forks), with one foreground session rendered at a time in the terminal
 
@@ -75,22 +77,26 @@ src/
 │   └── events.py
 ├── runtime/
 │   ├── __init__.py
-│   ├── session_runtime.py
-│   └── mutation_orchestrator.py
+│   └── session_runtime.py
 └── tui/
     ├── __init__.py
     ├── app.py
+    ├── story_projection.py
     ├── screens.py
     └── widgets.py
 
 tests/
 ├── test_main.py
 ├── unit/
-│   ├── test_models.py
-│   ├── test_graph.py
-│   └── test_agents.py
+│   ├── test_models_base.py
+│   ├── test_session_runtime.py
+│   ├── test_tui_app.py
+│   └── test_tui_story_projection.py
 └── integration/
-    └── test_tui_session_flow.py
+    ├── test_seed_startup_flow.py
+    ├── test_pause_resume_flow.py
+    ├── test_autonomous_progress_after_start.py
+    └── test_live_story_flow_rendering.py
 ```
 
 **Structure Decision:** Use a flat runtime layout directly under `src/` (for example `src/agents/`, `src/graph/`, `src/models/`, and `src/tui/`), keep the existing `src/config/` helpers, and mirror behavior with `tests/unit/` plus `tests/integration/` for TUI/session orchestration coverage.
@@ -113,7 +119,6 @@ To remove known ambiguities before implementation, the following constraints are
 
 These values make previously vague requirements testable and should be exposed as config with documented defaults:
 
-- `TUI_REFRESH_MS = 250`
 - `STALE_VIEW_GUARDRAIL_MS = 500`
 - `GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS = 60000`
 - `MUTATION_BURST_TRIGGER_COUNT = 3` within `10 s` triggers an immediate global check.
@@ -140,7 +145,7 @@ To keep autonomous mutation behavior deterministic and testable:
 
 Before implementation tasks begin, `tasks.md` must include failing tests mapped to FR/CA IDs, including:
 
-- FR-003 freshness assertions (`<=500 ms` visible update age under nominal load).
+- FR-003 continue-cycle assertions (no background auto-advance; one cycle per continue action).
 - FR-007 concurrency assertions for original and forked sessions (independent updates).
 - FR-009 event ordering and schema assertions using `target_ids` and monotonic sequences.
 - FR-013 deterministic interval and burst-trigger consistency checks.

@@ -1,12 +1,14 @@
 # Data Model: Terminal Self-Editing Narrative MVP
 
+**Spec Version**: 1.1.0
+
 ## Modeling assumptions
 
 - Runtime state is owned by a single session-scoped `SessionRuntime`.
 - The narrative graph is a `networkx.MultiDiGraph` with stable IDs for nodes and edges.
 - All subsystem boundaries use Pydantic v2 models with `extra="forbid"`.
 - No plain dictionaries are exchanged between the TUI, the LangGraph runtime, the graph service, or the export layer.
-- Autonomous mutation proposals are produced by a dedicated LangGraph mutation-proposer subgraph that is separate from scene-generation orchestration.
+- Runtime mutation proposals are produced by a dedicated LangGraph mutation-proposer subgraph that is separate from scene-generation orchestration.
 - Node activation for mutation is LLM-decided and constrained to one activated candidate per mutation cycle.
 
 ## Supporting enums and embedded models
@@ -325,7 +327,7 @@ Structured JSON export of a session snapshot.
 ## Requirement alignment
 
 - FR-001/FR-002: `Session.seed_text`, `Session.status`, and `TerminalCommand` start-session input.
-- FR-003/FR-004: `Session` snapshots, `graph_version`, pause/resume transitions.
+- FR-003/FR-004: `Session` snapshots, `graph_version`, explicit cycle advancement, and pause/resume transitions.
 - FR-005/FR-006: `NarrativeEdge.locked` and `protected_reason`.
 - FR-007: `parent_session_id` and forked `Session` snapshot derivation.
 - FR-008/FR-010: `SceneNode.entropy_score`, `drift_category`, and inspection snapshot fields.
