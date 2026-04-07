@@ -96,7 +96,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **FR-022**: The active-session panel MUST support overflow scrolling without forced auto-scroll jumps during refresh.
 - **FR-023**: The mutation-action selection stage MUST pass narrative context to the LLM that includes, at minimum, the last two scene texts, node count, edge count, branch count, and active candidate identifier.
 - **FR-024**: The system MUST have the LLM decide whether to expand, prune, rewrite, or skip mutation actions using narrative interestingness versus boredom heuristics.
-- **FR-025**: The system MUST fall back to a deterministic proposer when the LLM action-decision call fails, times out, or returns invalid structured output.
+- **FR-025**: The system MUST treat LLM action-decision call failures, timeouts, or invalid structured output as selection failures that emit failure telemetry, skip mutation application for that cycle, and engage backoff before the next retry.
 - **FR-026**: The system MUST log mutation-decision telemetry (decision source, action, confidence, reasoning, and proposal id) to both console and rotating file sinks.
 
 ### Constitution Alignment _(mandatory)_

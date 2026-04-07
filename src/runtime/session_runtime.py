@@ -13,8 +13,10 @@ from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
 
+from agents.llm_mutation_proposer import LLMMutationProposer, LLMMutationProposerError
 from agents.mutation_agent import MutationAgent
 from agents.mutation_engine import MutationEngine
+from agents.narrative_context_builder import NarrativeContextBuilder
 from agents.scene_agent import SceneAgent
 from config.env import (
     _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD,
@@ -37,9 +39,11 @@ from models.commands import (
     UnlockEdgeCommand,
 )
 from models.common import (
+    CheckStatus,
     MutationActionType,
     MutationEventKind,
     ProtectionReason,
+    SafetyCheckResult,
     SessionStatus,
     StrictBaseModel,
     UTCDateTime,
@@ -61,6 +65,8 @@ _MUTATION_CYCLE_RESOLVED_ERROR = "mutation cycle already resolved"
 _RUNTIME_SESSION_MUTATION_COOLDOWN = timedelta(
     milliseconds=_DEFAULT_SESSION_MUTATION_COOLDOWN_MS
 )
+_RUNTIME_MUTATION_PROPOSER_FAILURE_THRESHOLD = 2
+_RUNTIME_MUTATION_PROPOSER_BACKOFF_DURATION = timedelta(seconds=30)
 _RUNTIME_MUTATION_BURST_WINDOW = timedelta(
     seconds=_DEFAULT_MUTATION_BURST_WINDOW_SECONDS
 )
@@ -169,6 +175,8 @@ class _RuntimeSessionState(StrictBaseModel):
     recent_mutation_times: list[UTCDateTime] = Field(default_factory=list)
     burst_check_pending: bool = False
     burst_cooldown_until: UTCDateTime | None = None
+    mutation_proposer_failure_count: int = 0
+    mutation_proposer_backoff_until: UTCDateTime | None = None
 
 
 def _install_session_graph_mutation_hooks() -> None:
@@ -224,6 +232,7 @@ class SessionRuntime:
         session_graph: SessionGraph | None = None,
         *,
         scene_agent: SceneAgent | None = None,
+        mutation_proposer: LLMMutationProposer | None = None,
     ) -> None:
         _install_session_graph_mutation_hooks()
         self.session_graph = session_graph or SessionGraph()
@@ -232,6 +241,8 @@ class SessionRuntime:
         self.session_id: UUID | None = None
         self.session: Session | None = None
         self._scene_agent = scene_agent or SceneAgent()
+        self._mutation_proposer = mutation_proposer or LLMMutationProposer()
+        self._narrative_context_builder = NarrativeContextBuilder()
         self._mutation_engine = MutationEngine()
         self._mutation_agent = MutationAgent()
         self._lock = Lock()
@@ -242,6 +253,12 @@ class SessionRuntime:
         self._runtime_event_sequence = 0
         self._mutation_cycle_sequence = 0
         self._mutation_cooldown = _RUNTIME_SESSION_MUTATION_COOLDOWN
+        self._mutation_proposer_failure_threshold = (
+            _RUNTIME_MUTATION_PROPOSER_FAILURE_THRESHOLD
+        )
+        self._mutation_proposer_backoff_duration = (
+            _RUNTIME_MUTATION_PROPOSER_BACKOFF_DURATION
+        )
         self._mutation_burst_window = _RUNTIME_MUTATION_BURST_WINDOW
         self._mutation_burst_trigger_count = _RUNTIME_MUTATION_BURST_TRIGGER_COUNT
         self._global_mutation_storm_threshold = _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD
@@ -445,6 +462,8 @@ class SessionRuntime:
                 recent_mutation_times=list(active_state.recent_mutation_times),
                 burst_check_pending=active_state.burst_check_pending,
                 burst_cooldown_until=active_state.burst_cooldown_until,
+                mutation_proposer_failure_count=active_state.mutation_proposer_failure_count,
+                mutation_proposer_backoff_until=active_state.mutation_proposer_backoff_until,
             )
             self._scene_agent.bind_session_graph(forked_session, forked_graph)
 
@@ -543,14 +562,15 @@ class SessionRuntime:
                 )
                 return None
 
-            proposal = self._build_mutation_proposal(candidate_id)
+            proposal, failure_decision = self._propose_llm_mutation(
+                activation_candidate_id=candidate_id,
+                session_state=session_state,
+                now=now,
+            )
+            if failure_decision is not None:
+                return failure_decision
+
             if proposal is None:
-                self._append_runtime_event(
-                    event_type=MutationEventKind.VETOED,
-                    command_id="mutation-cycle-skip-no-target",
-                    session_id=self.session_id,
-                    message="mutation skipped: no mutable targets",
-                )
                 return None
 
             self._append_mutation_lifecycle_event(
@@ -629,60 +649,156 @@ class SessionRuntime:
         candidate_id = activation_candidate_id.strip()
         return candidate_id or None
 
-    def _build_mutation_proposal(
-        self, activation_candidate_id: str
-    ) -> MutationProposal | None:
-        if self.session is None or self.session_id is None:
-            return None
+    def _next_mutation_cycle_decision_id(self) -> str:
+        """Allocate the next synthetic mutation-cycle decision identifier."""
 
-        mutable_edge_id = self._first_mutable_edge_id(activation_candidate_id)
         self._mutation_cycle_sequence += 1
-        decision_id = f"mutation-cycle-{self._mutation_cycle_sequence:03d}"
-        if mutable_edge_id is None:
-            return MutationProposal(
-                decision_id=decision_id,
-                session_id=self.session_id,
-                actor_node_id=activation_candidate_id,
-                target_ids=[activation_candidate_id],
-                action_type=MutationActionType.ADD_NODE,
-                risk_score=0.4,
+        return f"mutation-cycle-{self._mutation_cycle_sequence:03d}"
+
+    def _is_mutation_proposer_backoff_active(
+        self, session_state: _RuntimeSessionState, now: datetime
+    ) -> bool:
+        """Return whether the proposer circuit breaker is currently open."""
+
+        backoff_until = session_state.mutation_proposer_backoff_until
+        return backoff_until is not None and now < backoff_until
+
+    def _record_mutation_proposer_failure(
+        self, session_state: _RuntimeSessionState, *, now: datetime
+    ) -> None:
+        """Record a proposer failure and open backoff when needed."""
+
+        session_state.mutation_proposer_failure_count += 1
+        if (
+            session_state.mutation_proposer_failure_count
+            >= self._mutation_proposer_failure_threshold
+        ):
+            session_state.mutation_proposer_backoff_until = (
+                now + self._mutation_proposer_backoff_duration
             )
+
+    def _reset_mutation_proposer_failure_state(
+        self, session_state: _RuntimeSessionState
+    ) -> None:
+        """Clear proposer failure counters after a successful proposal."""
+
+        session_state.mutation_proposer_failure_count = 0
+        session_state.mutation_proposer_backoff_until = None
+
+    def _build_mutation_failure_proposal(
+        self,
+        *,
+        activation_candidate_id: str,
+        decision_id: str,
+    ) -> MutationProposal:
+        """Build a synthetic no-op proposal for failure telemetry."""
+
+        if self.session_id is None:
+            raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
         return MutationProposal(
             decision_id=decision_id,
             session_id=self.session_id,
             actor_node_id=activation_candidate_id,
-            target_ids=[mutable_edge_id],
-            action_type=MutationActionType.REMOVE_EDGE,
-            risk_score=0.5,
+            target_ids=[activation_candidate_id],
+            action_type=MutationActionType.NO_OP,
+            risk_score=0.0,
         )
 
-    def _first_mutable_edge_id(self, activation_candidate_id: str) -> str | None:
-        mutable_edge_ids: list[str] = []
-        fallback_edge_ids: list[str] = []
+    def _build_mutation_failure_decision(
+        self,
+        *,
+        activation_candidate_id: str,
+        decision_id: str,
+        reason: str,
+    ) -> MutationDecision:
+        """Build a safe no-op decision for proposer failures."""
 
-        for _, _, _, edge_data in self.session_graph.graph.edges(keys=True, data=True):
-            graph_edge = edge_data.get("edge")
-            if not isinstance(graph_edge, GraphEdge):
-                continue
+        if self.session_id is None:
+            raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
-            if graph_edge.locked or graph_edge.protected_reason is not None:
-                continue
+        return MutationDecision(
+            decision_id=decision_id,
+            session_id=self.session_id,
+            actor_node_id=activation_candidate_id,
+            target_ids=[],
+            action_type=MutationActionType.NO_OP,
+            risk_score=0.0,
+            accepted=False,
+            rejected_reason=reason,
+            safety_checks=[
+                SafetyCheckResult(
+                    check_name="mutation_proposer_guard",
+                    status=CheckStatus.FAIL,
+                    message=reason,
+                )
+            ],
+        )
 
-            fallback_edge_ids.append(graph_edge.edge_id)
-            if (
-                graph_edge.source_node_id == activation_candidate_id
-                or graph_edge.target_node_id == activation_candidate_id
-            ):
-                mutable_edge_ids.append(graph_edge.edge_id)
+    def _propose_llm_mutation(
+        self,
+        *,
+        activation_candidate_id: str,
+        session_state: _RuntimeSessionState,
+        now: datetime,
+    ) -> tuple[MutationProposal | None, MutationDecision | None]:
+        if self.session is None or self.session_id is None:
+            return None, None
 
-        if mutable_edge_ids:
-            return sorted(mutable_edge_ids)[0]
+        if self._is_mutation_proposer_backoff_active(session_state, now):
+            decision_id = self._next_mutation_cycle_decision_id()
+            failure_message = (
+                "mutation proposer backoff active after "
+                f"{session_state.mutation_proposer_failure_count} consecutive failures"
+            )
+            self._append_mutation_lifecycle_event(
+                proposal=self._build_mutation_failure_proposal(
+                    activation_candidate_id=activation_candidate_id,
+                    decision_id=decision_id,
+                ),
+                event_type=MutationEventKind.FAILED,
+                message=failure_message,
+            )
+            return None, self._build_mutation_failure_decision(
+                activation_candidate_id=activation_candidate_id,
+                decision_id=decision_id,
+                reason=failure_message,
+            )
 
-        if fallback_edge_ids:
-            return sorted(fallback_edge_ids)[0]
+        try:
+            narrative_context = self._narrative_context_builder.build(
+                self.session,
+                self.session_graph,
+                activation_candidate_id,
+            )
+            proposal = self._mutation_proposer.propose(narrative_context)
+        except (LLMMutationProposerError, ValueError) as error:
+            decision_id = self._next_mutation_cycle_decision_id()
+            failure_detail = str(error.__cause__ or error)
+            failure_message = f"mutation proposer failed: {failure_detail}"
+            self._record_mutation_proposer_failure(session_state, now=now)
+            event_message = failure_message
+            if session_state.mutation_proposer_backoff_until is not None:
+                event_message = (
+                    f"{failure_message}; backoff active until "
+                    f"{session_state.mutation_proposer_backoff_until.isoformat()}"
+                )
+            self._append_mutation_lifecycle_event(
+                proposal=self._build_mutation_failure_proposal(
+                    activation_candidate_id=activation_candidate_id,
+                    decision_id=decision_id,
+                ),
+                event_type=MutationEventKind.FAILED,
+                message=event_message,
+            )
+            return None, self._build_mutation_failure_decision(
+                activation_candidate_id=activation_candidate_id,
+                decision_id=decision_id,
+                reason=failure_message,
+            )
 
-        return None
+        self._reset_mutation_proposer_failure_state(session_state)
+        return proposal, None
 
     def _prune_runtime_guardrails(
         self, session_state: _RuntimeSessionState, now: datetime
@@ -708,6 +824,12 @@ class SessionRuntime:
             and session_state.burst_cooldown_until <= now
         ):
             session_state.burst_cooldown_until = None
+
+        if (
+            session_state.mutation_proposer_backoff_until is not None
+            and session_state.mutation_proposer_backoff_until <= now
+        ):
+            session_state.mutation_proposer_backoff_until = None
 
         session_state.burst_check_pending = (
             len(session_state.recent_mutation_times)
@@ -837,6 +959,13 @@ class SessionRuntime:
             session_id=self.session_id,
             edge_id=proposal.target_ids[0] if proposal.target_ids else None,
             message=message,
+        )
+        LOGGER.info(
+            "mutation decision telemetry event=%s decision=%s session=%s detail=%s",
+            event_type.value,
+            proposal.decision_id,
+            self.session_id,
+            message,
         )
 
     def _retarget_graph_session_ids(

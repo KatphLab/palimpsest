@@ -28,7 +28,7 @@ LOGGING_CONFIG: Dict[str, Any] = {
             "backupCount": 5,
         },
     },
-    "root": {"level": "INFO", "handlers": ["console"]},
+    "root": {"level": "INFO", "handlers": ["console", "file"]},
     "loggers": {
         "app": {
             "level": "DEBUG",
