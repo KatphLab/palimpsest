@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
 from datetime import timedelta
-from typing import cast
 from uuid import UUID
 
 import pytest
@@ -24,35 +21,12 @@ from models.common import (
     MutationEventKind,
     SafetyCheckResult,
 )
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime, _RuntimeEventType
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for runtime unit tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
-
-
-class SequencedMutationProposalProvider:
-    """Deterministic LLM proposal provider for runtime tests."""
-
-    def __init__(self, responses: list[Callable[[str], str] | Exception]) -> None:
-        self._responses = responses
-        self.prompts: list[str] = []
-
-    def generate_mutation_proposal(self, *, prompt: str) -> str:
-        index = len(self.prompts)
-        if index >= len(self._responses):
-            raise AssertionError("LLM proposer should not be called during backoff")
-
-        self.prompts.append(prompt)
-        response = self._responses[index]
-        if isinstance(response, Exception):
-            raise response
-
-        return response(prompt)
+from tests.fixtures import (
+    DeterministicSceneGenerationProvider,
+    SequencedMutationProposalProvider,
+    build_mutation_response,
+)
 
 
 def _build_runtime(
@@ -66,45 +40,6 @@ def _build_runtime(
     )
     runtime._scene_agent._provider = DeterministicSceneGenerationProvider()
     return runtime
-
-
-def _narrative_context(prompt: str) -> dict[str, object]:
-    """Extract the serialized narrative context from a proposer prompt."""
-
-    context_text = prompt.rsplit("NarrativeContext: ", 1)[1]
-    return cast(dict[str, object], json.loads(context_text))
-
-
-def _mutation_response(
-    prompt: str,
-    *,
-    decision_id: str,
-    action_type: MutationActionType,
-) -> str:
-    """Build a structured mutation proposal response from live context."""
-
-    context = _narrative_context(prompt)
-    session_id = UUID(str(context["session_id"]))
-    previous_scene_node_id = str(context["previous_scene_node_id"])
-    current_scene_node_id = str(context["current_scene_node_id"])
-
-    if action_type is MutationActionType.ADD_NODE:
-        target_ids = [current_scene_node_id]
-    elif action_type is MutationActionType.REMOVE_EDGE:
-        target_ids = [f"{previous_scene_node_id}->{current_scene_node_id}"]
-    else:
-        raise AssertionError(f"unsupported test action {action_type}")
-
-    return json.dumps(
-        {
-            "decision_id": decision_id,
-            "session_id": str(session_id),
-            "actor_node_id": current_scene_node_id,
-            "target_ids": target_ids,
-            "action_type": action_type.value,
-            "risk_score": 0.25,
-        }
-    )
 
 
 def test_session_runtime_owns_the_session_graph_instance() -> None:
@@ -188,7 +123,7 @@ def test_runtime_uses_the_llm_proposed_mutation_when_proposal_succeeds() -> None
 
     proposal_provider = SequencedMutationProposalProvider(
         [
-            lambda prompt: _mutation_response(
+            lambda prompt: build_mutation_response(
                 prompt,
                 decision_id="mutation-cycle-001",
                 action_type=MutationActionType.ADD_NODE,
@@ -312,7 +247,7 @@ def test_runtime_resets_llm_proposer_failure_state_after_success() -> None:
     proposal_provider = SequencedMutationProposalProvider(
         [
             RuntimeError("provider unavailable"),
-            lambda prompt: _mutation_response(
+            lambda prompt: build_mutation_response(
                 prompt,
                 decision_id="mutation-cycle-002",
                 action_type=MutationActionType.ADD_NODE,
