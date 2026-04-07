@@ -64,22 +64,22 @@ class _StaticPanelSpy:
         self.contents.append(content)
 
 
-def test_refresh_active_session_panel_updates_text_only() -> None:
-    """Refreshing should update content without forcing scroll movement."""
+def test_refresh_panels_updates_scene_text_when_mounted() -> None:
+    """Refreshing should update scene text content when panel is mounted."""
 
     app_module = _app_module()
     app = app_module.SessionApp(runtime=_RuntimeStub())
     panel = _StaticPanelSpy()
-    app._render_session_panel = lambda: "updated content"
+    app._render_scene_text = lambda: "updated content"
 
     def _query_one(selector: str, widget_type: type[object]) -> object:
-        if selector == "#active-session-panel" and widget_type is Static:
+        if selector == "#scene-text-panel" and widget_type is Static:
             return panel
         raise AssertionError(f"Unexpected query selector={selector} type={widget_type}")
 
     app.query_one = _query_one
 
-    app._refresh_active_session_panel()
+    app._refresh_panels()
 
     assert panel.contents == ["updated content"]
 
@@ -96,7 +96,7 @@ def test_complete_continue_generation_refreshes_panel_and_resets_state() -> None
     def _refresh_panel() -> None:
         refreshed["calls"] += 1
 
-    app._refresh_active_session_panel = _refresh_panel
+    app._refresh_panels = _refresh_panel
 
     app._is_generating_scene = True
 
@@ -177,7 +177,7 @@ def test_action_start_session_refreshes_panel_when_seed_screen_dismisses() -> No
             "Callable[[object], None] | None", kwargs.get("callback")
         )
 
-    app._refresh_active_session_panel = _refresh_panel
+    app._refresh_panels = _refresh_panel
     app.push_screen = _push_screen
 
     app.action_start_session()
@@ -311,7 +311,7 @@ def test_worker_and_command_wrappers_delegate_to_helpers(
 
     notifications: list[tuple[str, str]] = []
     app.notify = lambda message, *, severity: notifications.append((message, severity))
-    app._refresh_active_session_panel = lambda: calls.append("refresh")
+    app._refresh_panels = lambda: calls.append("refresh")
     app._complete_continue_generation("boom")
 
     assert calls[0] == "worker"
@@ -422,7 +422,7 @@ def test_render_session_panel_shows_story_flow_and_branches() -> None:
         runtime=_RuntimeWithSessionStub(session=session, session_graph=session_graph)
     )
 
-    panel = app._render_session_panel()
+    panel = app._render_scene_text()
 
     assert "📖 STORY FLOW" in panel
     assert "1. The last train arrives empty." in panel
@@ -455,7 +455,7 @@ def test_render_session_panel_shows_detached_scene_section() -> None:
         runtime=_RuntimeWithSessionStub(session=session, session_graph=session_graph)
     )
 
-    panel = app._render_session_panel()
+    panel = app._render_scene_text()
 
     assert "🧩 DETACHED SCENES" in panel
     assert "- A cracked lens points at noon stars." in panel

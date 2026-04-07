@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
@@ -61,6 +62,13 @@ class MutationStreamEvent(SessionEvent):
     mutation_id: _NonEmptyText | None = None
     outcome: EventOutcome | None = None
 
+    @model_validator(mode="after")
+    def _validate_mutation_targets(self) -> MutationStreamEvent:
+        if self.event_type is EventType.MUTATION_APPLIED and not self.target_ids:
+            raise ValueError("applied mutation events require target_ids")
+
+        return self
+
 
 EventRecord = SessionEvent | MutationStreamEvent
 
@@ -74,28 +82,46 @@ class EventStreamEnvelope(StrictBaseModel):
 
     @model_validator(mode="after")
     def _validate_event_stream(self) -> EventStreamEnvelope:
-        result = self
         if not self.events:
             if self.latest_sequence != 0:
                 raise ValueError(
                     "latest_sequence must be zero when the stream is empty"
                 )
-        else:
-            expected_sequence = 1
-            for event in self.events:
-                if event.session_id != self.session_id:
-                    raise ValueError(
-                        "event session_id must match the envelope session_id"
-                    )
+            return self
 
-                if event.sequence != expected_sequence:
-                    raise ValueError(
-                        "event sequence must increase monotonically without gaps"
-                    )
+        self._validate_non_empty_stream()
+        return self
 
-                expected_sequence += 1
+    def _validate_non_empty_stream(self) -> None:
+        """Validate the event stream when it contains events."""
+        expected_sequence = 1
+        previous_occurred_at: datetime | None = None
 
-            if self.latest_sequence != self.events[-1].sequence:
-                raise ValueError("latest_sequence must match the final event sequence")
+        for event in self.events:
+            self._validate_event_session_id(event)
+            self._validate_event_sequence(event, expected_sequence)
+            previous_occurred_at = self._validate_event_timestamp(
+                event, previous_occurred_at
+            )
+            expected_sequence += 1
 
-        return result
+        if self.latest_sequence != self.events[-1].sequence:
+            raise ValueError("latest_sequence must match the final event sequence")
+
+    def _validate_event_session_id(self, event: EventRecord) -> None:
+        """Validate that event session_id matches the envelope."""
+        if event.session_id != self.session_id:
+            raise ValueError("event session_id must match the envelope session_id")
+
+    def _validate_event_sequence(self, event: EventRecord, expected: int) -> None:
+        """Validate that event sequence is monotonically increasing without gaps."""
+        if event.sequence != expected:
+            raise ValueError("event sequence must increase monotonically without gaps")
+
+    def _validate_event_timestamp(
+        self, event: EventRecord, previous: datetime | None
+    ) -> datetime:
+        """Validate that event timestamps are monotonically non-decreasing."""
+        if previous is not None and event.occurred_at < previous:
+            raise ValueError("event timestamps must be monotonically non-decreasing")
+        return event.occurred_at
