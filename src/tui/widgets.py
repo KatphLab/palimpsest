@@ -39,6 +39,7 @@ __all__ = [
 ]
 
 _SECTION_DIVIDER = "-" * 40
+_NO_INSPECTABLE_NODE_MSG = "No inspectable node available."
 
 
 class ShortcutFooterBar(Static):
@@ -285,22 +286,22 @@ def build_node_detail_lines(
         node_id=node_id,
     )
     if detail_node_id is None:
-        lines.extend(["No inspectable node available.", ""])
+        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
     if not session_graph.graph.has_node(detail_node_id):
-        lines.extend(["No inspectable node available.", ""])
+        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
     node_data = session_graph.graph.nodes[detail_node_id]
     if not isinstance(node_data, dict):
-        lines.extend(["No inspectable node available.", ""])
+        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
     graph_node = node_data.get("node")
     scene_node = node_data.get("scene_node")
     if not isinstance(graph_node, GraphNode) or not isinstance(scene_node, SceneNode):
-        lines.extend(["No inspectable node available.", ""])
+        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
     chronology = " -> ".join(session.active_node_ids) or "unknown"
