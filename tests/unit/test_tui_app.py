@@ -8,9 +8,11 @@ from types import ModuleType
 from typing import Callable, cast
 from uuid import UUID, uuid4
 
+import pytest
 from textual.widgets import Static
 
 from graph.session_graph import SessionGraph
+from models.commands import CommandResult
 from models.common import NodeKind, RelationType, SessionStatus
 from models.graph import GraphEdge, GraphNode
 from models.session import Session
@@ -23,6 +25,7 @@ def _app_module() -> ModuleType:
 class _RuntimeStub:
     def __init__(self) -> None:
         self.session_id = None
+        self.session = None
 
 
 class _RuntimeWithSessionStub:
@@ -43,6 +46,14 @@ class _RuntimeContinueStub:
     def advance_session_cycle(self) -> None:
         self.advance_calls += 1
         return None
+
+
+class _RuntimeWithSessionIdStub:
+    def __init__(self) -> None:
+        self.session_id = uuid4()
+        self.session = _build_created_session(seed_text="seed")
+        self.session_graph = SessionGraph()
+        self.state_version = 1
 
 
 class _StaticPanelSpy:
@@ -177,6 +188,138 @@ def test_action_start_session_refreshes_panel_when_seed_screen_dismisses() -> No
     callback(None)
 
     assert refreshed["calls"] == 1
+
+
+def test_action_start_session_warns_when_session_exists() -> None:
+    """Start should warn when a session is already active."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeWithSessionIdStub())
+    notifications: list[tuple[str, str]] = []
+
+    app.notify = lambda message, *, severity: notifications.append((message, severity))
+
+    app.action_start_session()
+
+    assert notifications == [("A session is already running", "warning")]
+
+
+def test_pause_and_resume_actions_route_runtime_and_notify_on_reject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pause and resume should call handlers and surface rejected resumes."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeWithSessionIdStub())
+    calls: list[str] = []
+    notifications: list[tuple[str, str]] = []
+
+    app.notify = lambda message, *, severity: notifications.append((message, severity))
+    monkeypatch.setattr(
+        app_module, "handle_pause_request", lambda runtime: calls.append("pause")
+    )
+    monkeypatch.setattr(
+        app_module,
+        "handle_resume_request",
+        lambda runtime: CommandResult(
+            command_id="resume-1",
+            accepted=False,
+            message="resume blocked",
+            state_version=1,
+        ),
+    )
+
+    app.action_pause_session()
+    app.action_resume_session()
+
+    assert calls == ["pause"]
+    assert notifications == [("resume blocked", "warning")]
+
+
+def test_action_continue_session_warns_for_missing_or_non_running_session() -> None:
+    """Continue should reject missing sessions and non-running session states."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeStub())
+    notifications: list[tuple[str, str]] = []
+    app.notify = lambda message, *, severity: notifications.append((message, severity))
+
+    app.action_continue_session()
+
+    runtime = _RuntimeWithSessionIdStub()
+    app.runtime = runtime
+    runtime.session.status = SessionStatus.CREATED
+    app.action_continue_session()
+
+    assert notifications == [
+        ("No active session", "warning"),
+        ("Session must be running", "warning"),
+    ]
+
+
+def test_worker_and_command_wrappers_delegate_to_helpers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """App helper methods should delegate to runtime wrappers and handlers."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeWithSessionIdStub())
+    calls: list[str] = []
+
+    app._run_continue_generation = lambda: calls.append("worker")
+    app._start_continue_generation_worker()
+
+    app.session_switcher.switch_session = lambda session_id: calls.append(
+        f"switch:{session_id}"
+    )
+    monkeypatch.setattr(
+        app_module,
+        "handle_lock_request",
+        lambda runtime, edge_id: CommandResult(
+            command_id="lock-1",
+            accepted=True,
+            message=f"locked {edge_id}",
+            state_version=1,
+        ),
+    )
+    monkeypatch.setattr(
+        app_module,
+        "handle_unlock_request",
+        lambda runtime, edge_id: CommandResult(
+            command_id="unlock-1",
+            accepted=True,
+            message=f"unlocked {edge_id}",
+            state_version=1,
+        ),
+    )
+    monkeypatch.setattr(
+        app_module,
+        "handle_fork_request",
+        lambda runtime, fork_label=None: CommandResult(
+            command_id="fork-1",
+            accepted=True,
+            message=f"forked {fork_label}",
+            state_version=1,
+        ),
+    )
+
+    target_session_id = uuid4()
+    app.switch_session(target_session_id)
+    lock_result = app.lock_edge("edge-1")
+    unlock_result = app.unlock_edge("edge-1")
+    fork_result = app.fork_session("branch-a")
+
+    notifications: list[tuple[str, str]] = []
+    app.notify = lambda message, *, severity: notifications.append((message, severity))
+    app._refresh_active_session_panel = lambda: calls.append("refresh")
+    app._complete_continue_generation("boom")
+
+    assert calls[0] == "worker"
+    assert calls[1] == f"switch:{target_session_id}"
+    assert lock_result.message == "locked edge-1"
+    assert unlock_result.message == "unlocked edge-1"
+    assert fork_result.message == "forked branch-a"
+    assert notifications == [("boom", "error")]
 
 
 def _build_created_session(seed_text: str) -> Session:
