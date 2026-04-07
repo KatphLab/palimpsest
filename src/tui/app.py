@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from textual.app import App, ComposeResult
-from textual.containers import Container
+from textual.containers import Container, ScrollableContainer
 from textual.widgets import Footer, Header, Static
 
 from models.commands import CommandResult
@@ -30,6 +30,10 @@ class SessionApp(App[None]):
     #active-session {
         padding: 1 2;
     }
+
+    #active-session-scroll {
+        height: 1fr;
+    }
     """
 
     BINDINGS = [
@@ -48,7 +52,8 @@ class SessionApp(App[None]):
 
         yield Header()
         with Container(id="active-session"):
-            yield Static(self._render_session_panel(), id="active-session-panel")
+            with ScrollableContainer(id="active-session-scroll"):
+                yield Static(self._render_session_panel(), id="active-session-panel")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -105,7 +110,12 @@ class SessionApp(App[None]):
 
     def _refresh_active_session_panel(self) -> None:
         panel = self.query_one("#active-session-panel", Static)
+        scroll_container = self.query_one(
+            "#active-session-scroll",
+            ScrollableContainer,
+        )
         panel.update(self._render_session_panel())
+        scroll_container.scroll_end(animate=False)
 
     def _render_session_panel(self) -> str:
         if self.runtime.session_id is None:
