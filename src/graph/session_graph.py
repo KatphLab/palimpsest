@@ -2,35 +2,16 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from datetime import datetime, timezone
 
 import networkx as nx
-from pydantic import Field
 
-from models.common import NodeKind, ProtectionReason, RelationType, StrictBaseModel
+from models.common import (
+    ProtectionReason,
+)
+from models.graph import GraphEdge, GraphNode
 
-__all__ = ["GraphEdge", "GraphNode", "SessionGraph"]
-
-
-class GraphNode(StrictBaseModel):
-    """Typed node record stored in the session graph."""
-
-    node_id: str = Field(min_length=1)
-    session_id: UUID
-    node_kind: NodeKind
-    text: str = Field(min_length=1)
-
-
-class GraphEdge(StrictBaseModel):
-    """Typed edge record stored in the session graph."""
-
-    edge_id: str = Field(min_length=1)
-    session_id: UUID
-    source_node_id: str = Field(min_length=1)
-    target_node_id: str = Field(min_length=1)
-    relation_type: RelationType
-    locked: bool = False
-    protected_reason: ProtectionReason | None = None
+__all__ = ["SessionGraph"]
 
 
 class SessionGraph:
@@ -65,11 +46,14 @@ class SessionGraph:
         if self.get_edge(edge.edge_id) is not None:
             raise ValueError(f"edge '{edge.edge_id}' already exists")
 
+        now = datetime.now(timezone.utc)
+        stamped_edge = edge.model_copy(update={"created_at": now, "updated_at": now})
+
         self._graph.add_edge(
             edge.source_node_id,
             edge.target_node_id,
             key=edge.edge_id,
-            edge=edge,
+            edge=stamped_edge,
         )
 
     def get_edge(self, edge_id: str) -> GraphEdge | None:
@@ -95,13 +79,14 @@ class SessionGraph:
 
         self._graph.remove_edge(source_node_id, target_node_id, key=edge_key)
 
-    def lock_edge(self, edge_id: str) -> None:
+    def lock_edge(self, edge_id: str, reason: ProtectionReason | None = None) -> None:
         """Mark an edge as locked and user-protected."""
 
+        reason = reason or ProtectionReason.USER_LOCK
         self._update_edge(
             edge_id,
             locked=True,
-            protected_reason=ProtectionReason.USER_LOCK,
+            protected_reason=reason,
         )
 
     def unlock_edge(self, edge_id: str) -> None:
@@ -133,7 +118,12 @@ class SessionGraph:
             raise ValueError(f"edge '{edge_id}' does not exist")
 
         source_node_id, target_node_id, edge_key, edge = edge_location
+        now = datetime.now(timezone.utc)
         updated_edge = edge.model_copy(
-            update={"locked": locked, "protected_reason": protected_reason}
+            update={
+                "locked": locked,
+                "protected_reason": protected_reason,
+                "updated_at": now,
+            }
         )
         self._graph[source_node_id][target_node_id][edge_key]["edge"] = updated_edge

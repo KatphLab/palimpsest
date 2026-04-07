@@ -12,7 +12,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ConfigDict
 
 from config.env import get_settings
-from graph.session_graph import GraphEdge, GraphNode, SessionGraph
+from graph.session_graph import SessionGraph
 from models.common import (
     BudgetTelemetry,
     CheckStatus,
@@ -27,6 +27,7 @@ from models.common import (
     TerminationVoteState,
     UTCDateTime,
 )
+from models.graph import GraphEdge, GraphNode
 from models.node import SceneNode
 from models.session import SceneGenerationProvider, Session
 
