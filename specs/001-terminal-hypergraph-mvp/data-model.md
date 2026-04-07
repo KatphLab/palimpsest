@@ -6,6 +6,8 @@
 - The narrative graph is a `networkx.MultiDiGraph` with stable IDs for nodes and edges.
 - All subsystem boundaries use Pydantic v2 models with `extra="forbid"`.
 - No plain dictionaries are exchanged between the TUI, the LangGraph runtime, the graph service, or the export layer.
+- Autonomous mutation proposals are produced by a dedicated LangGraph mutation-proposer subgraph that is separate from scene-generation orchestration.
+- Node activation for mutation is LLM-decided and constrained to one activated candidate per mutation cycle.
 
 ## Supporting enums and embedded models
 
@@ -165,6 +167,15 @@ Represents a directed relationship between nodes.
 
 Represents one proposed change from the LangGraph mutation branch.
 
+Action semantics:
+
+- `add_node`: creates one new node and requires immediate scene text generation in the same cycle once accepted.
+- `add_edge`: creates one directed relationship between existing nodes.
+- `remove_edge`: removes one mutable relationship edge.
+- `rewrite_node`: rewrites scene text for one existing node.
+- `prune_branch`: removes the full subgraph rooted at the targeted branch root, excluding seed-protected and otherwise protected graph state.
+- `no_op`: explicit no-change cycle outcome.
+
 | Field | Type | Rules |
 |---|---|---|
 | `decision_id` | `str` | Unique per proposal |
@@ -263,12 +274,14 @@ Structured JSON export of a session snapshot.
 3. `node_id` and `edge_id` values must be unique within a session.
 4. Locked edges cannot be removed or rewritten by autonomous mutation.
 5. The seed node is immutable after creation and cannot be deleted.
-6. At most one mutation may be applied per node activation.
+6. At most one mutation proposal may be produced and resolved per mutation cycle.
 7. Mutation cooldown must suppress rapid repeated changes on the same branch.
 8. Coherence and budget models must be present for every running session snapshot.
 9. Event sequence numbers must be strictly increasing without gaps in a single session log.
 10. `votes_for_termination + votes_against_termination` must never exceed `active_node_count`.
 11. All structured models must reject extra fields.
+12. `add_node` decisions must produce a non-empty scene text for the created node before the cycle is considered complete.
+13. `prune_branch` must target a valid branch root and may not remove seed-protected or otherwise protected graph state.
 
 ## State transitions
 
@@ -306,6 +319,8 @@ Structured JSON export of a session snapshot.
 - `safety_passed` is required before an action can alter the graph.
 - `applied` increments the session graph version.
 - `rejected` and `cooled_down` still append event-log records for traceability.
+- The mutation-proposer subgraph selects one activation candidate and emits at most one proposal per cycle.
+- When `action_type=add_node`, scene generation is immediate and part of the same applied mutation cycle.
 
 ## Requirement alignment
 
@@ -319,6 +334,9 @@ Structured JSON export of a session snapshot.
 - FR-012/FR-013: mutation safety fields, cooldown, and coherence checks.
 - FR-014: `TerminationVoteState` and session termination transitions.
 - FR-015: `BudgetTelemetry`.
+- FR-016/FR-017/FR-018: dedicated mutation-proposer flow, single-node activation, and one proposal resolution per cycle.
+- FR-019: immediate scene generation requirements for accepted `add_node` actions.
+- FR-020: `prune_branch` subgraph semantics with protection guardrails.
 - CA-001: `CoherenceSnapshot.global_score` and periodic checks.
 - CA-002: seed immutability, locked-edge protection, mutation caps, cooldown.
 - CA-003: all models are typed Pydantic contracts.

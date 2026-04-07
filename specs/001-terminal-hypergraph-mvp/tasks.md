@@ -91,7 +91,20 @@
 - [x] T031 [US2] Implement runtime handlers for lock, unlock, and fork commands in `src/runtime/session_runtime.py`
 - [x] T032 [US2] Implement TUI controls for edge locking and session switching in `src/tui/widgets.py`
 
-**Checkpoint**: User Story 2 is independently functional and testable.
+### Follow-up Implementation for User Story 2 (Autonomous Mutation Cycle)
+
+- [ ] T048 [P] [US2] Write failing unit tests for LangGraph mutation proposer subgraph with single-node activation in `tests/unit/test_mutation_engine.py`
+- [ ] T049 [P] [US2] Write failing integration test for one-mutation-per-cycle enforcement in `tests/integration/test_single_mutation_cycle.py`
+- [ ] T050 [P] [US2] Write failing integration test for immediate scene generation on accepted `add_node` mutation in `tests/integration/test_add_node_immediate_generation.py`
+- [ ] T051 [P] [US2] Write failing integration test for `prune_branch` full-subgraph removal with protected-state guardrails in `tests/integration/test_prune_branch_subgraph.py`
+- [ ] T052 [P] [US2] Implement dedicated mutation proposer LangGraph subgraph in `src/agents/mutation_engine.py`
+- [ ] T053 [US2] Extend mutation apply path for all action types (`add_node`, `add_edge`, `remove_edge`, `rewrite_node`, `prune_branch`, `no_op`) in `src/agents/mutation_agent.py`
+- [ ] T054 [US2] Extend scene agent APIs for immediate generation after accepted `add_node` and rewrite support in `src/agents/scene_agent.py`
+- [ ] T055 [US2] Implement runtime mutation orchestration loop (propose -> review -> apply -> emit outcome) in `src/runtime/session_runtime.py`
+- [ ] T056 [US2] Implement node cooldown and mutation burst guardrails in runtime loop state in `src/runtime/session_runtime.py`
+- [ ] T057 [US2] Emit mutation lifecycle events (`proposed`, `applied`, `rejected`, `cooled_down`) with monotonic sequencing in `src/runtime/session_runtime.py`
+
+**Checkpoint**: User Story 2 is independently functional and testable, including continuous autonomous mutation cycles.
 
 ---
 
@@ -145,7 +158,7 @@
 ### User Story Dependencies
 
 - US1 (P1): starts immediately after Foundational; delivers MVP runtime value
-- US2 (P2): starts after Foundational; functionally independent from US1 behavior except shared runtime contracts
+- US2 (P2): starts after Foundational; lock/fork controls are independent, while autonomous mutation-cycle follow-up tasks depend on US1 runtime loop and scene generation contracts
 - US3 (P3): starts after Foundational; can run in parallel with US2 if shared runtime files are coordinated
 
 ### Within Each User Story
@@ -163,6 +176,7 @@
 - Foundational: T007, T008, and T011 can run in parallel once T006 is written
 - US1: T015-T018 can run in parallel; T019-T021 can run in parallel
 - US2: T025-T027 can run in parallel; T028-T030 can run in parallel
+- US2 follow-up: T048-T051 can run in parallel; T052 and T054 can run in parallel before T055-T057
 - US3: T033-T037 can run in parallel; T038-T039 can run in parallel
 - Polish: T043 and T044 can run in parallel
 

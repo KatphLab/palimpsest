@@ -36,6 +36,7 @@ As a speculative modeler, I can protect specific narrative links and fork an act
 1. **Given** a session with at least one edge, **When** the user locks that edge, **Then** the edge remains intact during subsequent mutation cycles.
 2. **Given** a running session, **When** the user creates a fork, **Then** a new independent session is created with its own session identifier.
 3. **Given** an original session and a forked session, **When** the user continues running both, **Then** updates in one session do not alter the other.
+4. **Given** a running session, **When** autonomous mutation is evaluating a cycle, **Then** at most one node is activated and at most one mutation is proposed and resolved for that cycle.
 
 ---
 
@@ -52,6 +53,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 1. **Given** an active session, **When** the user views the monitoring surface, **Then** each visible node shows an entropy score and drift category.
 2. **Given** recent mutations exist, **When** the user inspects the event stream, **Then** events appear in chronological order with actor and target identifiers.
 3. **Given** an active session, **When** the user exports the graph snapshot, **Then** a complete session graph artifact is produced for offline analysis.
+4. **Given** an accepted `add_node` mutation, **When** the mutation is applied, **Then** the runtime generates scene text immediately for the created node in the same mutation cycle.
 
 ---
 
@@ -82,11 +84,17 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **FR-013**: The system MUST trigger global consistency checks at regular intervals and during mutation bursts.
 - **FR-014**: The system MUST end a session when termination voting exceeds `TERMINATION_MAJORITY_THRESHOLD` (strictly greater than half of active nodes) and produce a final session summary.
 - **FR-015**: The system MUST keep per-session operating cost within the configured budget target and surface budget breach alerts during runtime.
+- **FR-016**: The system MUST execute autonomous mutation decisions through a dedicated mutation-proposer workflow separate from scene-generation logic.
+- **FR-017**: The system MUST have the LLM select the single node activation candidate for each mutation cycle.
+- **FR-018**: The system MUST resolve at most one autonomous mutation per cycle (propose -> safety filter -> applied/rejected/cooled_down terminal outcome).
+- **FR-019**: The system MUST generate scene content immediately when an `add_node` mutation is accepted.
+- **FR-020**: The system MUST interpret `prune_branch` as removal of an entire targeted subgraph while preserving seed-protected and otherwise protected graph state.
 
 ### Constitution Alignment _(mandatory)_
 
 - **CA-001 Coherence**: The feature MUST preserve narrative coherence through continuous local scoring and periodic global checks, with a target global coherence score of at least 0.80 during a 30-minute run.
 - **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: at most one mutation per node activation, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
+- **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: LLM-driven single-node activation per cycle, at most one mutation resolved per cycle, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
 - **CA-003 Typed Contracts**: The feature MUST define and validate structured contracts for session state, node state, edge state, mutation decisions, entropy evaluations, and event records; malformed outputs MUST be rejected or safely downgraded.
 - **CA-004 Test-First Verification**: The feature MUST define failing acceptance tests before implementation for seed flow, pause/resume controls, lock/fork behaviors, mutation logging, entropy visibility, termination voting, and budget tracking outcomes.
 - **CA-005 Budget Compliance**: The feature MUST achieve entropy-breach-to-mutation handling within 5 seconds and keep expected session cost below $5 while surfacing alerts when budget limits are exceeded.
@@ -109,6 +117,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **SC-004**: At least one complete narrative arc (seed through termination) completes in under 10 minutes in a standard run (one foreground session using the documented defaults in plan.md).
 - **SC-005**: At least 70% of accepted mutations show improvement in downstream entropy within two subsequent activation cycles.
 - **SC-006**: Median per-session operating cost remains below $5 for standard 30-minute runs.
+- **SC-007**: In mutation-cycle audits, 100% of cycles emit no more than one activation and no more than one mutation terminal outcome.
 
 ## Assumptions
 

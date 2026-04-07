@@ -12,28 +12,42 @@ This project is a Self-Editing Narrative Hypergraph: a single, living hypergraph
 
 All environment and dependency management uses `uv`. Do not use `pip`, `pip-tools`, `poetry`, or `conda`.
 
-# Add a runtime dependency
+### Setup environment (standard)
 
+Always use `make install` to set up the development environment:
+
+```bash
+make install
+```
+
+This will sync dependencies, install pre-commit hooks, and prepare the project.
+
+### Add a runtime dependency
+
+```bash
 uv add <package>
+```
 
-# Add a dev-only dependency
+### Add a dev-only dependency
 
+```bash
 uv add --dev <package>
+```
 
-# Remove a dependency
+### Remove a dependency
 
+```bash
 uv remove <package>
+```
 
-# Run a command in the project environment without activating
+### Run a command in the project environment without activating
 
+```bash
 uv run python script.py
 uv run pytest
+```
 
 > Never manually edit `uv.lock`. It is auto-managed by `uv`.
-
-# To setup environment
-
-`make install`
 
 ---
 

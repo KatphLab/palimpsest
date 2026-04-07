@@ -4,6 +4,7 @@ Boundary: session runtime -> JSON export file.
 
 The export artifact is a frozen, schema-versioned JSON document for offline analysis and replay.
 `SessionEvent` is the typed event model defined in `event-stream-contract.md`.
+Mutation lifecycle records in `events` must preserve one-proposal-per-cycle semantics and terminal outcomes.
 
 ## Pydantic shapes
 
@@ -86,6 +87,8 @@ class ExportArtifact(BaseModel):
 - `nodes` and `edges` must be serializable without loss of required IDs.
 - The seed node must be present in every export.
 - `events` must be chronological and complete for the live session window.
+- Accepted `add_node` events must be replayable to a created node with non-empty scene text in the same cycle.
+- `prune_branch` outcomes must be replayable as full-subgraph removals while preserving protected state.
 - The export path must be writable; invalid paths must fail before partial writes occur.
 
 ## Requirement coverage

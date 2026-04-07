@@ -37,6 +37,7 @@ uv run python src/main.py
 ```
 
 The terminal UI should start, accept a seed, and render live graph updates once the runtime is implemented.
+Autonomous mutation should run continuously while the session is active, with one LLM-selected node activation and at most one mutation resolution per cycle.
 
 ## 4) Core user flows
 
@@ -58,6 +59,13 @@ The terminal UI should start, accept a seed, and render live graph updates once 
 2. Lock it.
 3. Trigger additional mutation cycles and confirm the edge remains intact.
 4. Unlock it if you want the runtime to consider it mutable again.
+
+### Observe autonomous mutation behavior
+
+1. Start a running session and keep it active for several cycles.
+2. Confirm one node activation event per cycle and at most one mutation decision outcome per cycle.
+3. Confirm accepted `add_node` mutations produce scene text immediately.
+4. Confirm `prune_branch` removes the targeted branch subgraph while preserving seed/protected state.
 
 ### Fork a session
 

@@ -76,13 +76,17 @@ class EventStreamEnvelope(BaseModel):
 - `MutationStreamEvent` is wire-compatible with the canonical `data-model.MutationEvent` audit record.
 - `MutationStreamEvent.outcome` uses the canonical `EventOutcome` enum (`success`, `blocked`, `warn`, `fail`) and remains optional when no terminal outcome exists.
 - Mutation events must include enough actor/target metadata to replay decisions offline.
+- Autonomous mutation processing is serialized: at most one `mutation_proposed` and exactly one terminal mutation outcome event (`mutation_applied` or `mutation_rejected`) per mutation cycle.
 
 ## Event semantics
 
 - `session_started`: emitted after a valid seed produces the first scene.
 - `node_activated`: emitted when a scene node is selected for the next reasoning cycle.
+- `node_activated`: emitted at most once per mutation cycle because activation selection is single-node.
 - `mutation_proposed`: emitted before safety filtering.
 - `mutation_applied` / `mutation_rejected`: emitted after safety evaluation.
+- `mutation_applied` for `add_node` must reflect that scene generation completed in the same cycle.
+- `mutation_rejected` also covers cooldown-suppressed cycles (with outcome and reason indicating cooldown).
 - `coherence_sampled`: emitted on local or global checks.
 - `budget_warning` / `budget_breach`: emitted when telemetry crosses thresholds.
 - `termination_voted` / `session_terminated`: emitted when majority voting closes the run.

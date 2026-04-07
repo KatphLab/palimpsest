@@ -20,8 +20,8 @@ This document resolves technical ambiguities for the terminal MVP into implement
 
 ## 3) LangGraph orchestration
 
-- Decision: Use one compiled LangGraph state machine per session with typed Pydantic state. The graph should include explicit nodes for scene generation, entropy and drift evaluation, mutation proposal, safety filtering, consistency checks, and termination voting. All model outputs are validated before they can update the session graph.
-- Rationale: A state machine matches the session lifecycle, makes safety gates explicit, and keeps mutation control separate from narrative generation. Typed state also makes retries and test doubles straightforward.
+- Decision: Use one compiled LangGraph state machine per session with typed Pydantic state, plus a dedicated mutation-proposer subgraph. The session graph includes explicit nodes for scene generation, entropy and drift evaluation, mutation proposal, safety filtering, consistency checks, and termination voting. Mutation proposal stays separate from scene generation, and the LLM selects one activation candidate per mutation cycle.
+- Rationale: A state machine matches the session lifecycle, makes safety gates explicit, and keeps mutation control separate from narrative generation. A dedicated mutation-proposer subgraph keeps autonomous topology edits explicit and testable while preserving a strict one-mutation-at-a-time policy.
 - Alternatives considered:
   - A single linear chain of agent calls.
   - Separate ad hoc agent functions coordinated outside LangGraph.
@@ -44,7 +44,7 @@ This document resolves technical ambiguities for the terminal MVP into implement
 
 ## 6) Export and event logging
 
-- Decision: Maintain an append-only in-memory event log of validated Pydantic event records. Every mutation attempt, veto, safety breach, budget alert, and termination decision appends a record with a monotonic sequence number and timestamp. Export produces a single structured JSON artifact containing the session snapshot, graph contents, and full event log. Runtime diagnostics still use the standard `logging` module, while the event log remains the canonical audit trail.
+- Decision: Maintain an append-only in-memory event log of validated Pydantic event records. Every mutation attempt, veto, safety breach, budget alert, and termination decision appends a record with a monotonic sequence number and timestamp. For autonomous mutation, each cycle emits at most one proposal and exactly one terminal outcome (`applied`, `rejected`, or `cooled_down`). Export produces a single structured JSON artifact containing the session snapshot, graph contents, and full event log. Runtime diagnostics still use the standard `logging` module, while the event log remains the canonical audit trail.
 - Rationale: Append-only events support replay, inspection, and offline analysis while keeping export format deterministic and easy to test.
 - Alternatives considered:
   - Text-only logging as the primary audit trail.
@@ -60,4 +60,4 @@ This document resolves technical ambiguities for the terminal MVP into implement
 
 ## Resulting implementation posture
 
-These decisions lock the MVP into a single-owner, typed, event-driven runtime with NetworkX as the graph store, LangGraph as the orchestration layer, Textual as the presentation layer, and Pydantic v2 as the contract boundary.
+These decisions lock the MVP into a single-owner, typed, event-driven runtime with NetworkX as the graph store, LangGraph as the orchestration layer, Textual as the presentation layer, and Pydantic v2 as the contract boundary. Autonomous mutation is handled by a dedicated LangGraph proposer path that uses LLM-selected single-node activation, immediate scene generation for accepted `add_node` actions, and full-subgraph semantics for `prune_branch`.

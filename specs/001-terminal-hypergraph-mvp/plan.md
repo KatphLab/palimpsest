@@ -4,7 +4,7 @@
 
 **Goal:** Build a terminal-first MVP where a Textual TUI (with plain CLI fallback) drives a LangGraph-orchestrated, NetworkX-backed narrative runtime that accepts a seed, grows a live graph, and supports pause/resume, lock/unlock, fork, inspect, export, and telemetry controls.
 
-**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and mutation decisions; and a Textual UI for live interaction and monitoring. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
+**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and a dedicated mutation-proposer subgraph; and a Textual UI for live interaction and monitoring. The continuous mutation loop is serialized to one LLM-selected node activation and one mutation resolution per cycle. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
 
 **Tech Stack:** Python 3.12, uv, Pydantic 2.12, NetworkX 3.6, LangGraph 1.1, langchain-openai 1.1, Textual, pytest.
 
@@ -61,7 +61,8 @@ src/
 ├── agents/
 │   ├── __init__.py
 │   ├── scene_agent.py
-│   └── mutation_agent.py
+│   ├── mutation_agent.py
+│   └── mutation_engine.py
 ├── graph/
 │   ├── __init__.py
 │   └── session_graph.py
@@ -72,6 +73,10 @@ src/
 │   ├── edge.py
 │   ├── mutation.py
 │   └── events.py
+├── runtime/
+│   ├── __init__.py
+│   ├── session_runtime.py
+│   └── mutation_orchestrator.py
 └── tui/
     ├── __init__.py
     ├── app.py
@@ -98,6 +103,9 @@ To remove known ambiguities before implementation, the following constraints are
 - Command envelope must use a discriminated union keyed by `command_type` so invalid `command_type`/`payload` pairings are rejected at parse time.
 - Event records must standardize on `target_ids: list[str]` (not `target_id`) to support multi-target mutation events and consistency with the data model.
 - Every mutation proposal must emit at least one `proposed` event and exactly one terminal outcome event (`applied`, `rejected`, or `cooled_down`).
+- The autonomous mutation path is producer-separated: mutation proposals come from a dedicated LangGraph mutation-proposer subgraph, not from scene-generation nodes.
+- Exactly one activation candidate and at most one mutation proposal are allowed per mutation cycle.
+- Accepted `add_node` mutations must trigger immediate scene generation before cycle completion.
 - All timestamps in models remain typed `datetime` values in-memory and are serialized as ISO-8601 UTC in JSON boundaries.
 - Fork behavior is explicit: forked sessions are independent and may continue running concurrently; UI focus switching must not mutate background sessions.
 
@@ -115,6 +123,18 @@ These values make previously vague requirements testable and should be exposed a
 - `ENTROPY_BREACH_THRESHOLD = 0.80`
 - `TERMINATION_MAJORITY_THRESHOLD = 0.5` (strictly greater than half of active nodes).
 - `SESSION_BUDGET_USD = 5.00`
+- `MUTATION_MAX_PROPOSALS_PER_CYCLE = 1`
+- `MUTATION_MAX_ACTIVATIONS_PER_CYCLE = 1`
+
+## Mutation Orchestration Clarifications
+
+To keep autonomous mutation behavior deterministic and testable:
+
+- Mutation proposals are produced by a dedicated LangGraph subgraph (`mutation_engine`) that is separate from scene generation.
+- The LLM selects exactly one activation candidate node per mutation cycle.
+- The runtime resolves at most one mutation per cycle (applied/rejected/cooled_down).
+- Accepted `add_node` mutations trigger immediate scene generation in the same cycle.
+- `prune_branch` removes the full targeted subgraph while preserving seed-protected and otherwise protected graph state.
 
 ## Test-First Gate Expansion
 
