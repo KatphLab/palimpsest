@@ -4,9 +4,9 @@
 
 **Goal:** Build a terminal-first MVP where a Textual TUI (with plain CLI fallback) drives a LangGraph-orchestrated, NetworkX-backed narrative runtime that accepts a seed, grows a live graph, and supports pause/resume, lock/unlock, fork, inspect, export, and telemetry controls.
 
-**Spec Version:** 1.1.0
+**Spec Version:** 1.2.0
 
-**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and a dedicated mutation-proposer subgraph; and a Textual UI for live interaction and monitoring. Mutation is serialized to one activation and one mutation resolution per cycle and is advanced explicitly through the TUI continue action. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
+**Architecture:** Keep the runtime single-process and session-scoped with one state owner (`SessionRuntime`) and typed message passing to the UI. Use Pydantic models for every command, graph, event, and export contract; a NetworkX graph service for topology mutation; LangGraph agents for scene generation and mutation-candidate selection; and an LLM-backed mutation-action proposer that consumes narrative context (last two scenes plus graph metrics) to choose `add_node`/`remove_edge`/`rewrite_node`/`no_op` with deterministic fallback. Mutation remains serialized to one activation and one mutation resolution per cycle and is advanced explicitly through the TUI continue action. `src/main.py` remains the CLI entry point, and existing config helpers stay in `src/config/`.
 
 **Tech Stack:** Python 3.12, uv, Pydantic 2.12, NetworkX 3.6, LangGraph 1.1, langchain-openai 1.1, Textual, pytest.
 
@@ -14,7 +14,7 @@
 
 ## Summary
 
-Implement a terminal MVP that turns a short story seed into a live narrative graph, advances one cycle at a time through explicit continue actions, enforces graph safety rules, and exposes entropy, mutation logs, and JSON export.
+Implement a terminal MVP that turns a short story seed into a live narrative graph, advances one cycle at a time through explicit continue actions, enforces graph safety rules, and exposes entropy, LLM-driven mutation-decision logs (console + file), and JSON export.
 
 ## Technical Context
 
@@ -62,9 +62,12 @@ src/
 │   └── logging_config.py
 ├── agents/
 │   ├── __init__.py
+│   ├── deterministic_mutation_proposer.py
+│   ├── llm_mutation_proposer.py
 │   ├── scene_agent.py
 │   ├── mutation_agent.py
-│   └── mutation_engine.py
+│   ├── mutation_engine.py
+│   └── narrative_context_builder.py
 ├── graph/
 │   ├── __init__.py
 │   └── session_graph.py
@@ -74,6 +77,7 @@ src/
 │   ├── node.py
 │   ├── edge.py
 │   ├── mutation.py
+│   ├── narrative_context.py
 │   └── events.py
 ├── runtime/
 │   ├── __init__.py
@@ -137,9 +141,11 @@ To keep autonomous mutation behavior deterministic and testable:
 
 - Mutation proposals are produced by a dedicated LangGraph subgraph (`mutation_engine`) that is separate from scene generation.
 - The LLM selects exactly one activation candidate node per mutation cycle.
+- After candidate selection, an LLM mutation-action stage evaluates narrative interestingness using the latest context (last two scenes + graph counts) and decides the action type.
 - The runtime resolves at most one mutation per cycle (applied/rejected/cooled_down).
 - Accepted `add_node` mutations trigger immediate scene generation in the same cycle.
 - `prune_branch` removes the full targeted subgraph while preserving seed-protected and otherwise protected graph state.
+- Mutation-decision telemetry is emitted to both console and rotating file logs for operator visibility.
 
 ## Test-First Gate Expansion
 

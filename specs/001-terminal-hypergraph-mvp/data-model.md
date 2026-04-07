@@ -1,6 +1,6 @@
 # Data Model: Terminal Self-Editing Narrative MVP
 
-**Spec Version**: 1.1.0
+**Spec Version**: 1.2.0
 
 ## Modeling assumptions
 
@@ -10,6 +10,7 @@
 - No plain dictionaries are exchanged between the TUI, the LangGraph runtime, the graph service, or the export layer.
 - Runtime mutation proposals are produced by a dedicated LangGraph mutation-proposer subgraph that is separate from scene-generation orchestration.
 - Node activation for mutation is LLM-decided and constrained to one activated candidate per mutation cycle.
+- Mutation action selection is LLM-decided from explicit narrative context (last two scenes plus graph topology counters), with deterministic fallback.
 
 ## Supporting enums and embedded models
 
@@ -66,6 +67,29 @@
 | `status` | `CheckStatus` | pass/warn/fail |
 | `message` | `str` | Human-readable result |
 | `details` | `str | None` | Optional context |
+
+### `NarrativeContext`
+
+| Field | Type | Rules |
+|---|---|---|
+| `session_id` | `UUID` | Owning session |
+| `candidate_node_id` | `str` | Active mutation candidate |
+| `recent_scene_texts` | `list[str]` | Exactly the latest two non-empty scene texts when available |
+| `node_count` | `int` | >= 0 |
+| `edge_count` | `int` | >= 0 |
+| `branch_count` | `int` | >= 0 (`relation_type=branches_from`) |
+| `graph_version` | `int` | Monotonic per session |
+
+### `MutationActionSelection`
+
+| Field | Type | Rules |
+|---|---|---|
+| `decision_id` | `str` | Stable id for cycle-local decision |
+| `source` | `str` | `llm` or `fallback` |
+| `action_type` | `MutationActionType` | Chosen action |
+| `reasoning` | `str` | Non-empty natural-language rationale |
+| `confidence` | `float` | 0.0-1.0 |
+| `suggested_direction` | `str | None` | Optional narrative hint for expansion |
 
 ### `NodeTerminationVote`
 
@@ -190,6 +214,8 @@ Action semantics:
 | `accepted` | `bool` | Set only after safety filter |
 | `rejected_reason` | `str | None` | Required when rejected |
 
+`MutationDecision` is derived from `MutationActionSelection` plus runtime targeting and safety filtering.
+
 ### 6) `MutationEvent`
 
 Append-only canonical audit record for all mutation activity. The terminal event stream uses the
@@ -284,6 +310,8 @@ Structured JSON export of a session snapshot.
 11. All structured models must reject extra fields.
 12. `add_node` decisions must produce a non-empty scene text for the created node before the cycle is considered complete.
 13. `prune_branch` must target a valid branch root and may not remove seed-protected or otherwise protected graph state.
+14. LLM mutation action selection must receive `NarrativeContext` including up to two recent scene texts plus graph node/edge/branch counts.
+15. If LLM selection fails validation, runtime must use deterministic fallback and mark selection `source=fallback`.
 
 ## State transitions
 
@@ -339,6 +367,9 @@ Structured JSON export of a session snapshot.
 - FR-016/FR-017/FR-018: dedicated mutation-proposer flow, single-node activation, and one proposal resolution per cycle.
 - FR-019: immediate scene generation requirements for accepted `add_node` actions.
 - FR-020: `prune_branch` subgraph semantics with protection guardrails.
+- FR-023/FR-024: `NarrativeContext` and `MutationActionSelection` define LLM action-decision inputs and outputs for boring-vs-interesting mutation choice.
+- FR-025: deterministic fallback is captured by `MutationActionSelection.source` (`llm` or `fallback`).
+- FR-026: mutation decision telemetry fields (`source`, `action_type`, `confidence`, `reasoning`) are first-class typed data.
 - CA-001: `CoherenceSnapshot.global_score` and periodic checks.
 - CA-002: seed immutability, locked-edge protection, mutation caps, cooldown.
 - CA-003: all models are typed Pydantic contracts.

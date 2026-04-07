@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-terminal-hypergraph-mvp`
 **Created**: 2026-04-06
-**Spec Version**: 1.1.0
+**Spec Version**: 1.2.0
 **Status**: Draft
 **Input**: User description: `@docs/prd.md`
 
@@ -38,6 +38,7 @@ As a speculative modeler, I can protect specific narrative links and fork an act
 2. **Given** a running session, **When** the user creates a fork, **Then** a new independent session is created with its own session identifier.
 3. **Given** an original session and a forked session, **When** the user continues running both, **Then** updates in one session do not alter the other.
 4. **Given** a running session, **When** autonomous mutation is evaluating a cycle, **Then** at most one node is activated and at most one mutation is proposed and resolved for that cycle.
+5. **Given** a running session, **When** autonomous mutation evaluates a cycle, **Then** mutation action selection is decided by an LLM using narrative context (including at minimum the last two scenes and graph topology counts).
 
 ---
 
@@ -55,6 +56,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 2. **Given** recent mutations exist, **When** the user inspects the event stream, **Then** events appear in chronological order with actor and target identifiers.
 3. **Given** an active session, **When** the user exports the graph snapshot, **Then** a complete session graph artifact is produced for offline analysis.
 4. **Given** an accepted `add_node` mutation, **When** the mutation is applied, **Then** the runtime generates scene text immediately for the created node in the same mutation cycle.
+5. **Given** autonomous mutation decisions occur, **When** the user observes runtime output, **Then** decision source, action, confidence, and reasoning are emitted to both console and file logs.
 
 ---
 
@@ -92,11 +94,14 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **FR-020**: The system MUST interpret `prune_branch` as removal of an entire targeted subgraph while preserving seed-protected and otherwise protected graph state.
 - **FR-021**: The TUI active-session panel MUST render deterministic narrative projection sections for seed, ordered story flow, and detached scenes.
 - **FR-022**: The active-session panel MUST support overflow scrolling without forced auto-scroll jumps during refresh.
+- **FR-023**: The mutation-action selection stage MUST pass narrative context to the LLM that includes, at minimum, the last two scene texts, node count, edge count, branch count, and active candidate identifier.
+- **FR-024**: The system MUST have the LLM decide whether to expand, prune, rewrite, or skip mutation actions using narrative interestingness versus boredom heuristics.
+- **FR-025**: The system MUST fall back to a deterministic proposer when the LLM action-decision call fails, times out, or returns invalid structured output.
+- **FR-026**: The system MUST log mutation-decision telemetry (decision source, action, confidence, reasoning, and proposal id) to both console and rotating file sinks.
 
 ### Constitution Alignment _(mandatory)_
 
 - **CA-001 Coherence**: The feature MUST preserve narrative coherence through continuous local scoring and periodic global checks, with a target global coherence score of at least 0.80 during a 30-minute run.
-- **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: at most one mutation per node activation, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
 - **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: LLM-driven single-node activation per cycle, at most one mutation resolved per cycle, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
 - **CA-003 Typed Contracts**: The feature MUST define and validate structured contracts for session state, node state, edge state, mutation decisions, entropy evaluations, and event records; malformed outputs MUST be rejected or safely downgraded.
 - **CA-004 Test-First Verification**: The feature MUST define failing acceptance tests before implementation for seed flow, pause/resume controls, lock/fork behaviors, mutation logging, entropy visibility, termination voting, and budget tracking outcomes.

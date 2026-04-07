@@ -1,6 +1,6 @@
 # Tasks: Terminal Self-Editing Narrative MVP
 
-**Spec Version**: 1.1.0
+**Spec Version**: 1.2.0
 
 **Input**: Design documents from `/specs/001-terminal-hypergraph-mvp/`
 **Prerequisites**: `plan.md` (required), `spec.md` (required), `research.md`, `data-model.md`, `contracts/`, `quickstart.md`
@@ -112,6 +112,31 @@
 
 ---
 
+## Phase 4.5: LLM Mutation Strategy Layer (Pre-US3)
+
+**Purpose**: Replace static mutation action proposal heuristics with an LLM-driven action selector that evaluates narrative context, while preserving deterministic fallback and mutation safety.
+
+### Tests for Phase 4.5 (REQUIRED)
+
+- [ ] T060 [P] [US2] Write failing unit tests for narrative-context extraction (last two scenes + graph counters) in `tests/unit/test_narrative_context_builder.py`
+- [ ] T061 [P] [US2] Write failing unit tests for LLM mutation-action selection parsing and validation in `tests/unit/test_llm_mutation_proposer.py`
+- [ ] T062 [P] [US2] Write failing unit tests for deterministic fallback selection when LLM output is invalid/unavailable in `tests/unit/test_deterministic_mutation_proposer.py`
+- [ ] T063 [P] [US2] Write failing integration test proving repeated continue actions can grow beyond two scenes in `tests/integration/test_llm_mutation_progression.py`
+- [ ] T064 [P] [US2] Write failing integration test for decision-log emission to console and `app.log` in `tests/integration/test_mutation_decision_logging.py`
+
+### Implementation for Phase 4.5
+
+- [ ] T065 [P] [US2] Implement typed narrative context models in `src/models/narrative_context.py`
+- [ ] T066 [P] [US2] Implement narrative context builder from live graph/session state in `src/agents/narrative_context_builder.py`
+- [ ] T067 [P] [US2] Implement deterministic mutation proposer fallback in `src/agents/deterministic_mutation_proposer.py`
+- [ ] T068 [US2] Implement LLM mutation proposer with structured-output parsing and fallback routing in `src/agents/llm_mutation_proposer.py`
+- [ ] T069 [US2] Integrate LLM mutation proposer into runtime mutation-cycle orchestration in `src/runtime/session_runtime.py`
+- [ ] T070 [US2] Update logging configuration for mutation-decision telemetry in both console and rotating file handlers in `src/config/logging_config.py`
+
+**Checkpoint**: LLM-driven mutation action selection is active with deterministic fallback, and decision telemetry is visible in both console and file logs.
+
+---
+
 ## Phase 5: User Story 3 - Inspect Entropy and Mutation Decisions (Priority: P3)
 
 **Goal**: Let a user monitor entropy/mutation decisions, inspect node details, and export complete typed session artifacts.
@@ -157,13 +182,15 @@
 - Setup (Phase 1): no dependencies
 - Foundational (Phase 2): depends on Setup completion and blocks all user stories
 - User Story phases (Phases 3-5): each depends on Foundational completion
+- Phase 4.5 depends on US2 mutation-orchestration completion and blocks US3 observability implementation to avoid rework.
 - Polish (Phase 6): depends on completion of the target user stories
 
 ### User Story Dependencies
 
 - US1 (P1): starts immediately after Foundational; delivers MVP runtime value
 - US2 (P2): starts after Foundational; lock/fork controls are independent, while autonomous mutation-cycle follow-up tasks depend on US1 runtime loop and scene generation contracts
-- US3 (P3): starts after Foundational; can run in parallel with US2 if shared runtime files are coordinated
+- Phase 4.5 (pre-US3): starts after US2 mutation-cycle tasks; introduces LLM mutation action strategy and logging telemetry
+- US3 (P3): starts after Phase 4.5 so observability surfaces align with finalized mutation-decision telemetry
 
 ### Within Each User Story
 
@@ -181,6 +208,7 @@
 - US1: T015-T018 can run in parallel; T019-T021 can run in parallel; T058 and T059 can run in parallel after T023
 - US2: T025-T027 can run in parallel; T028-T030 can run in parallel
 - US2 follow-up: T048-T051 can run in parallel; T052 and T054 can run in parallel before T055-T057
+- Phase 4.5: T060-T064 can run in parallel; T065-T067 can run in parallel before T068-T070
 - US3: T033-T037 can run in parallel; T038-T039 can run in parallel
 - Polish: T043 and T044 can run in parallel
 
@@ -246,8 +274,9 @@ Task: "T039 [US3] src/runtime/exporter.py"
 1. Foundation ready (Phases 1-2).
 2. Deliver US1 and validate independently.
 3. Deliver US2 and validate lock/fork independence.
-4. Deliver US3 and validate observability/export coverage.
-5. Finish with Polish tasks for global checks and documentation.
+4. Deliver Phase 4.5 LLM mutation strategy and validate >2-scene progression plus decision logging.
+5. Deliver US3 and validate observability/export coverage.
+6. Finish with Polish tasks for global checks and documentation.
 
 ### Parallel Team Strategy
 
