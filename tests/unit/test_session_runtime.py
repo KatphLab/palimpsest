@@ -102,10 +102,7 @@ def test_session_runtime_exposes_all_runtime_event_kinds() -> None:
 def test_runtime_falls_back_to_add_node_when_no_mutable_edge_exists() -> None:
     """Runtime should propose/add a node when protected edges block remove-edge."""
 
-    runtime = SessionRuntime(
-        session_graph=SessionGraph(),
-        refresh_interval_seconds=60,
-    )
+    runtime = SessionRuntime(session_graph=SessionGraph())
     runtime._scene_agent._provider = DeterministicSceneGenerationProvider()
     start_result = runtime.handle_command(
         StartSessionCommand(
@@ -130,10 +127,7 @@ def test_runtime_falls_back_to_add_node_when_no_mutable_edge_exists() -> None:
 def test_runtime_records_mutation_skip_event_when_no_candidate_exists() -> None:
     """Runtime should emit a lifecycle event when no candidate can be selected."""
 
-    runtime = SessionRuntime(
-        session_graph=SessionGraph(),
-        refresh_interval_seconds=60,
-    )
+    runtime = SessionRuntime(session_graph=SessionGraph())
     runtime._scene_agent._provider = DeterministicSceneGenerationProvider()
     start_result = runtime.handle_command(
         StartSessionCommand(

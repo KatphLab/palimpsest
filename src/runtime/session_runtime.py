@@ -8,7 +8,7 @@ from collections import deque
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from enum import StrEnum
-from threading import Event, Lock, Thread
+from threading import Lock
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
@@ -53,7 +53,6 @@ __all__ = ["SessionRuntime"]
 
 LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_REFRESH_INTERVAL_SECONDS = 0.25
 _MAX_RUNTIME_EVENTS = 1000
 _NO_ACTIVE_SESSION_ERROR = "no active session exists"
 _RUNTIME_MUTATION_ORCHESTRATED_KEY = "runtime_mutation_orchestrated"
@@ -228,7 +227,6 @@ class SessionRuntime:
         session_graph: SessionGraph | None = None,
         *,
         scene_agent: SceneAgent | None = None,
-        refresh_interval_seconds: float = _DEFAULT_REFRESH_INTERVAL_SECONDS,
     ) -> None:
         _install_session_graph_mutation_hooks()
         self.session_graph = session_graph or SessionGraph()
@@ -239,10 +237,7 @@ class SessionRuntime:
         self._scene_agent = scene_agent or SceneAgent()
         self._mutation_engine = MutationEngine()
         self._mutation_agent = MutationAgent()
-        self._refresh_interval_seconds = refresh_interval_seconds
         self._lock = Lock()
-        self._refresh_stop = Event()
-        self._refresh_thread: Thread | None = None
         self._session_states: dict[UUID, _RuntimeSessionState] = {}
         self._runtime_event_buffer: deque[_RuntimeEvent] = deque(
             maxlen=_MAX_RUNTIME_EVENTS
@@ -340,7 +335,6 @@ class SessionRuntime:
                 session_graph=self.session_graph,
             )
             self.state_version = 1
-            self._ensure_refresh_loop()
 
             LOGGER.info("started session %s", session_id)
             return self._build_result(command.command_id, "start_session accepted")
@@ -498,6 +492,23 @@ class SessionRuntime:
         """Execute one autonomous mutation cycle for the active session."""
 
         with self._lock:
+            return self._run_mutation_cycle_locked()
+
+    def advance_session_cycle(self) -> MutationDecision | None:
+        """Advance one manual session step by refreshing state and mutating once."""
+
+        with self._lock:
+            if self.session is None or self.session_id is None:
+                return None
+
+            if self.session.status != SessionStatus.RUNNING:
+                return None
+
+            self._scene_agent.refresh_visible_state(
+                self.session,
+                self.session_graph,
+                refreshed_at=datetime.now(timezone.utc),
+            )
             return self._run_mutation_cycle_locked()
 
     def _build_result(self, command_id: str, message: str) -> CommandResult:
@@ -853,27 +864,3 @@ class SessionRuntime:
                 edge_data["edge"] = graph_edge.model_copy(
                     update={"session_id": session_id}
                 )
-
-    def _ensure_refresh_loop(self) -> None:
-        if self._refresh_thread is not None:
-            return
-
-        self._refresh_thread = Thread(
-            target=self._refresh_loop,
-            name="session-refresh-loop",
-            daemon=True,
-        )
-        self._refresh_thread.start()
-
-    def _refresh_loop(self) -> None:
-        while not self._refresh_stop.wait(self._refresh_interval_seconds):
-            with self._lock:
-                if self.session is None or self.session.status != SessionStatus.RUNNING:
-                    continue
-
-                self._scene_agent.refresh_visible_state(
-                    self.session,
-                    self.session_graph,
-                    refreshed_at=datetime.now(timezone.utc),
-                )
-                self._run_mutation_cycle_locked()

@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from importlib import import_module
 from types import ModuleType
+from typing import Callable, cast
 from uuid import UUID, uuid4
 
-from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
 from graph.session_graph import SessionGraph
@@ -41,30 +41,17 @@ class _StaticPanelSpy:
         self.contents.append(content)
 
 
-class _ScrollContainerSpy:
-    def __init__(self) -> None:
-        self.scroll_calls = 0
-
-    def scroll_end(self, *, animate: bool = True) -> None:
-        _ = animate
-        self.scroll_calls += 1
-
-
-def test_refresh_active_session_panel_updates_text_and_scrolls_to_latest() -> None:
-    """Refreshing should update content and auto-follow the newest text."""
+def test_refresh_active_session_panel_updates_text_only() -> None:
+    """Refreshing should update content without forcing scroll movement."""
 
     app_module = _app_module()
     app = app_module.SessionApp(runtime=_RuntimeStub())
     panel = _StaticPanelSpy()
-    scroll_container = _ScrollContainerSpy()
-
     app._render_session_panel = lambda: "updated content"
 
     def _query_one(selector: str, widget_type: type[object]) -> object:
         if selector == "#active-session-panel" and widget_type is Static:
             return panel
-        if selector == "#active-session-scroll" and widget_type is ScrollableContainer:
-            return scroll_container
         raise AssertionError(f"Unexpected query selector={selector} type={widget_type}")
 
     app.query_one = _query_one
@@ -72,7 +59,83 @@ def test_refresh_active_session_panel_updates_text_and_scrolls_to_latest() -> No
     app._refresh_active_session_panel()
 
     assert panel.contents == ["updated content"]
-    assert scroll_container.scroll_calls == 1
+
+
+def test_action_continue_session_runs_manual_cycle_and_refreshes_panel() -> None:
+    """Continue should trigger one manual cycle and one panel refresh."""
+
+    app_module = _app_module()
+
+    class _RuntimeContinueStub:
+        def __init__(self) -> None:
+            self.session_id = uuid4()
+            self.session = _build_created_session(seed_text="seed")
+            self.session.status = SessionStatus.RUNNING
+            self.advance_calls = 0
+
+        def advance_session_cycle(self) -> None:
+            self.advance_calls += 1
+            return None
+
+    runtime = _RuntimeContinueStub()
+    app = app_module.SessionApp(runtime=runtime)
+    refreshed = {"calls": 0}
+
+    def _refresh_panel() -> None:
+        refreshed["calls"] += 1
+
+    app._refresh_active_session_panel = _refresh_panel
+
+    app.action_continue_session()
+
+    assert runtime.advance_calls == 1
+    assert refreshed["calls"] == 1
+
+
+def test_on_mount_does_not_start_periodic_refresh() -> None:
+    """Mount should not schedule interval-based panel refreshes."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeStub())
+    interval_calls = {"count": 0}
+
+    def _set_interval(*_: object, **__: object) -> None:
+        interval_calls["count"] += 1
+
+    app.set_interval = _set_interval
+
+    app.on_mount()
+
+    assert interval_calls["count"] == 0
+
+
+def test_action_start_session_refreshes_panel_when_seed_screen_dismisses() -> None:
+    """Starting from seed entry should refresh the main panel after dismiss."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeStub())
+    refreshed = {"calls": 0}
+    captured: dict[str, Callable[[object], None] | None] = {"callback": None}
+
+    def _refresh_panel() -> None:
+        refreshed["calls"] += 1
+
+    def _push_screen(*_: object, **kwargs: object) -> None:
+        captured["callback"] = cast(
+            "Callable[[object], None] | None", kwargs.get("callback")
+        )
+
+    app._refresh_active_session_panel = _refresh_panel
+    app.push_screen = _push_screen
+
+    app.action_start_session()
+
+    callback = captured["callback"]
+    assert callable(callback)
+
+    callback(None)
+
+    assert refreshed["calls"] == 1
 
 
 def _build_created_session(seed_text: str) -> Session:

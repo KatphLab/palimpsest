@@ -77,6 +77,8 @@ uv run pytest
 - Do not use **global state** unless absolutely necessary
 - Do not write **god functions** — split logic into helpers
 - Do not leave **dead code**, commented-out blocks, or `TODO` without context
+- Do not use type: ignore without justification. Always try to resolve the underlying typing or design problem instead. If you need a `# type: ignore`,
+  explain why in an inline comment.
 - Do not add compatibility import shims (for example `src/src/__init__.py`) to paper over incorrect imports
 
 ### Import Path Rules (src layout)

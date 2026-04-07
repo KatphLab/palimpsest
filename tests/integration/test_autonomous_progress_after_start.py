@@ -1,4 +1,4 @@
-"""Integration tests for autonomous progress immediately after startup."""
+"""Integration tests for manual-only progress after startup."""
 
 from time import sleep
 
@@ -20,13 +20,12 @@ class DeterministicSceneGenerationProvider(SceneGenerationProvider):
         return f"FIRST SCENE :: {seed_text}"
 
 
-def test_start_session_advances_graph_after_initial_scene_generation() -> None:
-    """Runtime should autonomously mutate the graph shortly after startup."""
+def test_start_session_does_not_advance_graph_without_manual_cycle() -> None:
+    """Runtime should remain stable until a manual mutation cycle is requested."""
 
     runtime = SessionRuntime(
         session_graph=SessionGraph(),
         scene_agent=SceneAgent(provider=DeterministicSceneGenerationProvider()),
-        refresh_interval_seconds=0.05,
     )
     command = StartSessionCommand(
         command_id="cmd-start-autonomous-progress-001",
@@ -39,5 +38,5 @@ def test_start_session_advances_graph_after_initial_scene_generation() -> None:
 
     sleep(0.25)
 
-    assert runtime.state_version > 1
-    assert runtime.session_graph.graph.number_of_nodes() > 2
+    assert runtime.state_version == 1
+    assert runtime.session_graph.graph.number_of_nodes() == 2

@@ -41,6 +41,7 @@ class SessionApp(App[None]):
         ("s", "start_session", "Start"),
         ("p", "pause_session", "Pause"),
         ("r", "resume_session", "Resume"),
+        ("c", "continue_session", "Continue"),
     ]
 
     def __init__(self, runtime: SessionRuntime | None = None) -> None:
@@ -58,9 +59,7 @@ class SessionApp(App[None]):
         yield Footer()
 
     def on_mount(self) -> None:
-        """Start the refresh subscription."""
-
-        self.set_interval(0.25, self._refresh_active_session_panel)
+        """Initialize without automatic refresh polling."""
 
     def action_start_session(self) -> None:
         """Open the seed entry screen."""
@@ -69,7 +68,10 @@ class SessionApp(App[None]):
             self.notify("A session is already running", severity="warning")
             return
 
-        self.push_screen(SeedEntryScreen(self.runtime))
+        self.push_screen(
+            SeedEntryScreen(self.runtime),
+            callback=lambda _: self._refresh_active_session_panel(),
+        )
 
     def action_pause_session(self) -> None:
         """Pause the current runtime session."""
@@ -88,6 +90,20 @@ class SessionApp(App[None]):
         result = handle_resume_request(self.runtime)
         if not result.accepted:
             self.notify(result.message, severity="warning")
+
+    def action_continue_session(self) -> None:
+        """Advance one manual cycle and refresh the active panel."""
+
+        if self.runtime.session is None:
+            self.notify("No active session", severity="warning")
+            return
+
+        if self.runtime.session.status is not SessionStatus.RUNNING:
+            self.notify("Session must be running", severity="warning")
+            return
+
+        self.runtime.advance_session_cycle()
+        self._refresh_active_session_panel()
 
     def switch_session(self, session_id: UUID) -> None:
         """Switch the active runtime session through the wrapper."""
@@ -111,12 +127,7 @@ class SessionApp(App[None]):
 
     def _refresh_active_session_panel(self) -> None:
         panel = self.query_one("#active-session-panel", Static)
-        scroll_container = self.query_one(
-            "#active-session-scroll",
-            ScrollableContainer,
-        )
         panel.update(self._render_session_panel())
-        scroll_container.scroll_end(animate=False)
 
     def _render_session_panel(self) -> str:
         if self.runtime.session_id is None:

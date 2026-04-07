@@ -32,7 +32,6 @@ def test_tui_panel_renders_growing_story_and_detached_nodes_after_edge_removal()
     runtime = SessionRuntime(
         session_graph=SessionGraph(),
         scene_agent=SceneAgent(provider=DeterministicSceneGenerationProvider()),
-        refresh_interval_seconds=3600.0,
     )
     runtime._mutation_cooldown = timedelta(milliseconds=0)
     runtime._global_mutation_storm_threshold = 1000
