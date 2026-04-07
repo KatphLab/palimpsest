@@ -34,11 +34,21 @@ class SessionApp(App[None]):
     TITLE = "Palimpsest"
     CSS = """
     #active-session {
-        padding: 1 2;
+        padding: 0;
+        height: 1fr;
     }
 
-    #active-session-scroll {
-        height: 1fr;
+    #scene-text-scroll {
+        height: 7fr;
+        border-bottom: solid $surface-darken-1;
+    }
+
+    #telemetry-scroll {
+        height: 3fr;
+    }
+
+    #scene-text-panel, #telemetry-panel {
+        padding: 1 2;
     }
 
     #shortcut-footer {
@@ -61,12 +71,14 @@ class SessionApp(App[None]):
         self._footer_bar = ShortcutFooterBar(id="shortcut-footer")
 
     def compose(self) -> ComposeResult:
-        """Render the application shell."""
+        """Render the application shell with split panels."""
 
         yield Header()
         with Container(id="active-session"):
-            with ScrollableContainer(id="active-session-scroll"):
-                yield Static(self._render_session_panel(), id="active-session-panel")
+            with ScrollableContainer(id="scene-text-scroll"):
+                yield Static(self._render_scene_text(), id="scene-text-panel")
+            with ScrollableContainer(id="telemetry-scroll"):
+                yield Static(self._render_telemetry(), id="telemetry-panel")
         yield self._footer_bar
 
     def on_mount(self) -> None:
@@ -81,7 +93,7 @@ class SessionApp(App[None]):
 
         self.push_screen(
             SeedEntryScreen(self.runtime),
-            callback=lambda _: self._refresh_active_session_panel(),
+            callback=lambda _: self._refresh_panels(),
         )
 
     def action_pause_session(self) -> None:
@@ -140,7 +152,7 @@ class SessionApp(App[None]):
     def _complete_continue_generation(self, error_message: str | None) -> None:
         if error_message is not None:
             self.notify(error_message, severity="error")
-        self._refresh_active_session_panel()
+        self._refresh_panels()
         self._set_generating_scene(False)
 
     def switch_session(self, session_id: UUID) -> None:
@@ -163,11 +175,24 @@ class SessionApp(App[None]):
 
         return handle_fork_request(self.runtime, fork_label=fork_label)
 
-    def _refresh_active_session_panel(self) -> None:
-        panel = self.query_one("#active-session-panel", Static)
-        panel.update(self._render_session_panel())
+    def _refresh_panels(self) -> None:
+        """Refresh both scene text and telemetry panels."""
 
-    def _render_session_panel(self) -> str:
+        try:
+            scene_panel = self.query_one("#scene-text-panel", Static)
+            scene_panel.update(self._render_scene_text())
+        except Exception:
+            pass  # Panel not yet mounted
+
+        try:
+            telemetry_panel = self.query_one("#telemetry-panel", Static)
+            telemetry_panel.update(self._render_telemetry())
+        except Exception:
+            pass  # Panel not yet mounted
+
+    def _render_scene_text(self) -> str:
+        """Render scene text content (story flow)."""
+
         if self.runtime.session_id is None:
             return "No active session. Press s to start one."
 
@@ -177,7 +202,6 @@ class SessionApp(App[None]):
             else SessionStatus.CREATED
         )
 
-        # Build the base session info
         lines = [
             f"Session: {self.runtime.session_id}",
             f"Status: {status}",
@@ -193,19 +217,28 @@ class SessionApp(App[None]):
                     session=self.runtime.session,
                 )
             )
-            lines.extend(
-                build_entropy_hotspot_lines(session_graph=self.runtime.session_graph)
+
+        return "\n".join(lines)
+
+    def _render_telemetry(self) -> str:
+        """Render telemetry content (entropy, details, mutation log)."""
+
+        if self.runtime.session is None:
+            return ""
+
+        lines: list[str] = []
+
+        lines.extend(
+            build_entropy_hotspot_lines(session_graph=self.runtime.session_graph)
+        )
+        lines.extend(
+            build_node_detail_lines(
+                session_graph=self.runtime.session_graph,
+                session=self.runtime.session,
             )
-            lines.extend(
-                build_node_detail_lines(
-                    session_graph=self.runtime.session_graph,
-                    session=self.runtime.session,
-                )
-            )
-            lines.extend(
-                build_mutation_log_lines(
-                    event_log=getattr(self.runtime, "event_log", None)
-                )
-            )
+        )
+        lines.extend(
+            build_mutation_log_lines(event_log=getattr(self.runtime, "event_log", None))
+        )
 
         return "\n".join(lines)

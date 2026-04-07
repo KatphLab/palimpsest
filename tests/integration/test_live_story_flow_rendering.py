@@ -122,7 +122,7 @@ def test_tui_panel_renders_growing_story_and_detached_nodes_after_edge_removal()
 
     app = SessionApp(runtime=runtime)
 
-    initial_panel = app._render_session_panel()
+    initial_panel = app._render_scene_text()
     assert "📖 STORY FLOW" in initial_panel
     assert "1. FIRST SCENE :: A glass tower watches the sea." in initial_panel
 
@@ -131,7 +131,7 @@ def test_tui_panel_renders_growing_story_and_detached_nodes_after_edge_removal()
     assert first_decision.accepted is True
     assert first_decision.action_type is MutationActionType.ADD_NODE
 
-    grown_panel = app._render_session_panel()
+    grown_panel = app._render_scene_text()
     assert "1. FIRST SCENE :: A glass tower watches the sea." in grown_panel
     assert (
         "  1.1 FIRST SCENE :: FIRST SCENE :: A glass tower watches the sea."
@@ -143,7 +143,7 @@ def test_tui_panel_renders_growing_story_and_detached_nodes_after_edge_removal()
     assert second_decision.accepted is True
     assert second_decision.action_type is MutationActionType.REMOVE_EDGE
 
-    after_removal_panel = app._render_session_panel()
+    after_removal_panel = app._render_scene_text()
     assert "1. FIRST SCENE :: A glass tower watches the sea." in after_removal_panel
     assert "🧩 DETACHED SCENES" in after_removal_panel
     assert (
