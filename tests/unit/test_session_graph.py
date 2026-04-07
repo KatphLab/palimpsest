@@ -5,8 +5,9 @@ from uuid import UUID
 
 import pytest
 
-from graph.session_graph import GraphEdge, GraphNode, SessionGraph
+from graph.session_graph import SessionGraph
 from models.common import NodeKind, ProtectionReason, RelationType
+from models.graph import GraphEdge, GraphNode
 
 
 class _FixedDatetime:

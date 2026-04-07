@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 from pydantic import ConfigDict, Field
 
 from agents.scene_agent import SceneAgent
-from graph.session_graph import GraphEdge, GraphNode, SessionGraph
+from graph.session_graph import SessionGraph
 from models.commands import (
     CommandResult,
     ExportSessionCommand,
@@ -28,6 +28,7 @@ from models.commands import (
     UnlockEdgeCommand,
 )
 from models.common import SessionStatus, StrictBaseModel, UTCDateTime
+from models.graph import GraphEdge, GraphNode
 from models.node import SceneNode
 from models.session import Session
 

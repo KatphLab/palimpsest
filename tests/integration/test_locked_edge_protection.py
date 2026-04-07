@@ -3,7 +3,7 @@
 import pytest
 
 from agents.scene_agent import SceneAgent
-from graph.session_graph import GraphEdge, SessionGraph
+from graph.session_graph import SessionGraph
 from models.commands import (
     CommandType,
     EmptyPayload,
@@ -15,6 +15,7 @@ from models.commands import (
     StartSessionPayload,
 )
 from models.common import ProtectionReason
+from models.graph import GraphEdge
 from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
 

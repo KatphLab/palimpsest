@@ -3,43 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import UUID
 
 import networkx as nx
-from pydantic import Field
 
 from models.common import (
-    NodeKind,
     ProtectionReason,
-    RelationType,
-    StrictBaseModel,
-    UTCDateTime,
 )
+from models.graph import GraphEdge, GraphNode
 
-__all__ = ["GraphEdge", "GraphNode", "SessionGraph"]
-
-
-class GraphNode(StrictBaseModel):
-    """Typed node record stored in the session graph."""
-
-    node_id: str = Field(min_length=1)
-    session_id: UUID
-    node_kind: NodeKind
-    text: str = Field(min_length=1)
-
-
-class GraphEdge(StrictBaseModel):
-    """Typed edge record stored in the session graph."""
-
-    edge_id: str = Field(min_length=1)
-    session_id: UUID
-    source_node_id: str = Field(min_length=1)
-    target_node_id: str = Field(min_length=1)
-    relation_type: RelationType
-    created_at: UTCDateTime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: UTCDateTime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    locked: bool = False
-    protected_reason: ProtectionReason | None = None
+__all__ = ["SessionGraph"]
 
 
 class SessionGraph:
@@ -155,6 +127,3 @@ class SessionGraph:
             }
         )
         self._graph[source_node_id][target_node_id][edge_key]["edge"] = updated_edge
-
-
-GraphEdge.model_rebuild(_types_namespace={"UTCDateTime": UTCDateTime})

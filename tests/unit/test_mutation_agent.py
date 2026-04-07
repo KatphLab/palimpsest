@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from agents.mutation_agent import MutationAgent
-from graph.session_graph import GraphEdge, GraphNode, SessionGraph
+from graph.session_graph import SessionGraph
 from models.common import (
     CheckStatus,
     MutationActionType,
@@ -12,6 +12,7 @@ from models.common import (
     RelationType,
     SafetyCheckResult,
 )
+from models.graph import GraphEdge, GraphNode
 from models.mutation import MutationProposal
 
 

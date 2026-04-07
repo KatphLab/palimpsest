@@ -3,7 +3,7 @@
 import pytest
 
 from agents.scene_agent import SceneAgent
-from graph.session_graph import GraphNode, SessionGraph
+from graph.session_graph import SessionGraph
 from models.commands import (
     CommandType,
     ForkSessionCommand,
@@ -12,6 +12,7 @@ from models.commands import (
     StartSessionPayload,
 )
 from models.common import NodeKind
+from models.graph import GraphNode
 from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
 
