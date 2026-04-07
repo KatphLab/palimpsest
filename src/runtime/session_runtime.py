@@ -38,6 +38,7 @@ LOGGER = logging.getLogger(__name__)
 
 _DEFAULT_REFRESH_INTERVAL_SECONDS = 0.25
 _MAX_RUNTIME_EVENTS = 1000
+_NO_ACTIVE_SESSION_ERROR = "no active session exists"
 
 
 class _RuntimeEventType(StrEnum):
@@ -204,7 +205,7 @@ class SessionRuntime:
     def _handle_resume_session(self, command: ResumeSessionCommand) -> CommandResult:
         with self._lock:
             if self.session is None or self.session_id is None:
-                raise ValueError("no active session exists")
+                raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
             # If session is already running, return a rejected result instead of error
             if self.session.status == SessionStatus.RUNNING:
@@ -343,7 +344,7 @@ class SessionRuntime:
 
     def _require_active_session(self, required_status: SessionStatus) -> None:
         if self.session is None or self.session_id is None:
-            raise ValueError("no active session exists")
+            raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
         if self.session.status != required_status:
             raise ValueError(
@@ -380,7 +381,7 @@ class SessionRuntime:
         parent_session_id: UUID | None = None,
     ) -> None:
         if session_id is None:
-            raise ValueError("no active session exists")
+            raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
         self._runtime_event_sequence += 1
         self._runtime_event_buffer.append(

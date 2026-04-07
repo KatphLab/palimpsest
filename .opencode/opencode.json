@@ -3,12 +3,12 @@
   "agent": {
     "build": {
       "tools": {
-        "sonar_*": true
+        "sonarqube_*": true
       }
     }
   },
   "mcp": {
-    "sonar": {
+    "sonarqube": {
       "enabled": true
     }
   }

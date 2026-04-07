@@ -74,26 +74,28 @@ class EventStreamEnvelope(StrictBaseModel):
 
     @model_validator(mode="after")
     def _validate_event_stream(self) -> EventStreamEnvelope:
+        result = self
         if not self.events:
             if self.latest_sequence != 0:
                 raise ValueError(
                     "latest_sequence must be zero when the stream is empty"
                 )
-            return self
+        else:
+            expected_sequence = 1
+            for event in self.events:
+                if event.session_id != self.session_id:
+                    raise ValueError(
+                        "event session_id must match the envelope session_id"
+                    )
 
-        expected_sequence = 1
-        for event in self.events:
-            if event.session_id != self.session_id:
-                raise ValueError("event session_id must match the envelope session_id")
+                if event.sequence != expected_sequence:
+                    raise ValueError(
+                        "event sequence must increase monotonically without gaps"
+                    )
 
-            if event.sequence != expected_sequence:
-                raise ValueError(
-                    "event sequence must increase monotonically without gaps"
-                )
+                expected_sequence += 1
 
-            expected_sequence += 1
+            if self.latest_sequence != self.events[-1].sequence:
+                raise ValueError("latest_sequence must match the final event sequence")
 
-        if self.latest_sequence != self.events[-1].sequence:
-            raise ValueError("latest_sequence must match the final event sequence")
-
-        return self
+        return result
