@@ -1,22 +1,20 @@
-# Self-Editing Narrative Hypergraph (SENH)
+# Palimpsest — Self-Editing Narrative Hypergraph
 
-A real-time narrative hypergraph prototype where LLM-driven scene agents can mutate graph
-topology while preserving global story coherence.
+An autonomous narrative engine where LLM-driven scene agents self-organize into a living hypergraph, dynamically mutating story topology while preserving coherence. From a single seed prompt, the system generates branching scenes, detects when narrative entropy declines, and autonomously restructures the graph through mutations like node splitting, edge addition, and branch pruning.
 
-## Features
+## What It Does
 
-- **Python 3.12+** - Modern Python version with latest features
-- **UV Package Manager** - Fast, reliable Python package management
-- **Pydantic Settings** - Type-safe configuration from environment variables
-- **Pre-commit Hooks** - Automated code quality checks with Ruff
-- **Configurable Logging** - Flexible logging with multiple formatters
-- **Environment Management** - Dotenv support for local development
+**Autonomous Story Generation**: Provide a seed prompt and watch the system generate a narrative hypergraph in real-time. Each node represents a story scene; edges represent causal, thematic, temporal, or contradiction relationships between scenes.
 
-## Engineering Governance
+**Self-Modifying Graph Topology**: When the narrative detects low coherence, novelty, or tension, scene agents autonomously propose and execute mutations—adding nodes, splitting existing ones, removing stale connections, or voting for story termination.
 
-- Project constitution: `.specify/memory/constitution.md`
-- Runtime engineering rules: `AGENTS.md`
-- Product requirements baseline: `docs/prd.md`
+**Scrollable Story View**: The TUI features a scrollable panel displaying the evolving narrative flow. Branches are shown with numbered indentation (1.1, 1.2, etc.), and detached scenes are listed separately.
+
+**Generating Indicator**: A footer bar shows real-time session status and a "Generating..." indicator when LLM calls are in progress.
+
+**Live Terminal Interface**: A rich Textual-based TUI provides real-time visibility into the evolving story graph, entropy scores, mutation events, and active scene nodes.
+
+**Session Control**: Pause, resume, fork sessions, lock critical edges to protect them from mutation, and export the complete graph state at any time.
 
 ## Quick Start
 
@@ -24,6 +22,7 @@ topology while preserving global story coherence.
 
 - Python 3.12 or higher
 - [UV](https://docs.astral.sh/uv/) package manager
+- OpenAI API key (for scene generation and entropy evaluation)
 
 ### Installation
 
@@ -36,20 +35,111 @@ cd palimpsest
 make install
 ```
 
-This will:
-- Install all dependencies with UV
-- Install pre-commit hooks
-- Update hooks to latest versions
-
-### Development
+### Running a Session
 
 ```bash
-# Activate the virtual environment
-source .venv/bin/activate
+# Start the terminal UI
+uv run python -m palimpsest
 
-# Run your application
-python -m your_module
+# Or run directly
+python -m src.main
 ```
+
+## Using the Application
+
+### Starting a Story
+
+1. Press `s` to start a new session
+2. Enter a seed prompt (up to 280 characters)
+3. The system generates Node 0 and begins autonomous expansion
+
+### Session Controls
+
+| Key | Action |
+|-----|--------|
+| `s` | Start a new session (seed entry) |
+| `p` | Pause the current session |
+| `r` | Resume a paused session |
+| `c` | Manually advance one generation cycle |
+| `↑/↓` or `PgUp/PgDn` | Scroll story view |
+
+### Managing the Graph
+
+**Lock/Unlock Edges**: Protect narrative branches from mutation by locking edges. Locked edges persist across mutations and ensure key story pathways remain intact.
+
+**Fork Sessions**: Create an independent copy of the current session at any point. Forks share the parent session's graph state but evolve independently.
+
+**Session Switching**: Switch between active sessions to compare different narrative branches.
+
+### Understanding the Display
+
+The live view shows:
+- **Session Status**: CREATED, RUNNING, or PAUSED
+- **State Version**: Incremented on each mutation
+- **Node Count**: Total scenes in the graph
+- **Active Nodes**: Currently processing or recently modified nodes
+- **Story Projection**: Chronological narrative flow with branch numbering (1.1, 1.2, etc.)
+- **Detached Scenes**: Orphan nodes not connected to the mainline
+
+## LLM Mutation Strategy Layer
+
+The system employs an LLM-driven strategy layer for intelligent mutation selection:
+
+### Narrative Context Builder
+
+The `NarrativeContextBuilder` extracts relevant context from the live session graph to inform mutation decisions:
+- **Last Two Scenes**: The previous and current scene text provides narrative continuity
+- **Graph Metrics**: Node count, edge count, active nodes, and graph version
+- **Seed Node**: Reference to the original story seed for thematic consistency
+
+### LLM Mutation Proposer
+
+The `LLMMutationProposer` uses GPT-4o-mini to generate structured mutation proposals based on narrative context. It returns validated `MutationProposal` objects containing:
+- Selected mutation action type
+- Target node/edge IDs
+- Confidence scoring and reasoning
+
+### Failure Telemetry & Backoff
+
+When the LLM proposer fails (network issues, parsing errors, schema violations), the system:
+1. Logs the failure via structured `MutationEventKind.FAILED` events
+2. Falls back to a simplified selection strategy
+3. Implements backoff to avoid hammering the LLM provider
+4. Records telemetry for debugging and optimization
+
+### Mutation Decision Logging
+
+All mutation decisions are logged with full context for transparency:
+- Timestamp and session ID
+- Narrative context at decision time
+- Proposed vs executed actions
+- Failure reasons (if applicable)
+
+## Narrative Dynamics
+
+Every scene node is continuously evaluated on three dimensions:
+- **Continuity**: Logical flow and coherence with parent scenes
+- **Novelty**: Resistance to tropes and pattern repetition
+- **Tension**: Stakes, uncertainty, and unresolved pressure
+
+When aggregate entropy drops below 0.40, the scene agent must propose a mutation to restore narrative vitality.
+
+### Mutation Types
+
+| Mutation | Description |
+|----------|-------------|
+| `ADD_NODE` | Add a new scene connected to an existing one |
+| `SPLIT_NODE` | Divide a scene into two parts (20-80% ratio) |
+| `REMOVE_EDGE` | Remove a connection between scenes |
+| `MODIFY_SELF` | Rewrite scene content in place |
+| `VOTE_TERMINATE` | Cast a vote to end the story arc |
+
+### Safety Controls
+
+- **Node 0 Protection**: The seed node cannot be removed
+- **Locked Edge Immunity**: Locked edges survive mutations
+- **Mutation Cooldown**: Per-node rate limiting (30s between mutations)
+- **Burst Detection**: Global cooldown if mutation storm exceeds threshold
 
 ## Configuration
 
@@ -61,64 +151,53 @@ Copy `.env.example` to `.env` and customize:
 cp .env.example .env
 ```
 
-Available settings:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL) |
-| `LOG_FORMATTER` | `standard` | Log format style (`standard` or `detailed`) |
+| `OPENAI_API_KEY` | — | OpenAI API key for LLM calls |
+| `LOG_LEVEL` | `INFO` | Logging verbosity (DEBUG, INFO, WARNING, ERROR) |
+| `LOG_FORMATTER` | `standard` | Log format (`standard` or `detailed`) |
 
-### Logging
+### Performance Tuning
 
-The template includes a flexible logging setup:
+Control cost and quality tradeoffs through environment variables:
 
-```python
-from config.logging_config import setup_logging
-import logging
-
-# Initialize logging
-setup_logging()
-
-# Use the logger
-logger = logging.getLogger("app")
-logger.info("Application started")
-```
-
-**Formatter Options:**
-- `standard`: `2024-01-15 10:30:45 [INFO] app: Message`
-- `detailed`: `2024-01-15 10:30:45 [INFO] app:42 - Message` (includes line numbers)
+- Scene generation uses GPT-4o-mini for cost efficiency
+- Context windows are compressed to manage token usage
+- Max 10 concurrent LLM calls to respect rate limits
 
 ## Project Structure
 
 ```
 .
-├── config/
-│   ├── env.py              # Pydantic settings configuration
-│   └── logging_config.py   # Logging setup
-├── .env.example            # Example environment variables
-├── .gitignore             # Git ignore patterns
-├── .pre-commit-config.yaml # Pre-commit hooks configuration
-├── .python-version        # Python version specification
-├── Makefile              # Common development tasks
-├── pyproject.toml        # Project metadata and dependencies
-├── README.md             # This file
-└── uv.lock               # Locked dependency versions
+├── src/
+│   ├── agents/           # Scene agents, mutation engine, entropy scoring
+│   ├── graph/            # Hypergraph model and session graph management
+│   ├── models/           # Pydantic schemas (nodes, edges, sessions, mutations, narrative_context)
+│   ├── runtime/          # Session runtime and command routing
+│   ├── tui/              # Terminal UI components, screens, story projection
+│   └── config/           # Environment and logging configuration
+├── tests/                # Unit, integration, and contract tests
+│   └── fixtures/         # Shared test utilities and fixtures
+├── docs/prd.md           # Product requirements document
+└── AGENTS.md             # Development conventions and patterns
 ```
 
-## Development Tools
+## Development
 
-### Pre-commit Hooks
+### Running Tests
 
-The following hooks run automatically on commit:
-
-- **Ruff** - Fast Python linter and formatter
-- **Check AST** - Validates Python syntax
-- **End of File Fixer** - Ensures files end with a newline
-- **Trailing Whitespace** - Removes trailing whitespace
-
-Manual run:
 ```bash
-pre-commit run --all-files
+# All tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov=src --cov-report=html
+
+# Unit tests only
+uv run pytest -m unit
+
+# Integration tests only
+uv run pytest -m integration
 ```
 
 ### Code Quality
@@ -129,39 +208,28 @@ ruff format .
 
 # Check and auto-fix issues
 ruff check . --fix
+
+# Run pre-commit hooks
+pre-commit run --all-files
 ```
 
-## Adding Dependencies
+## Architecture Highlights
 
-```bash
-# Add runtime dependency
-uv add package-name
+**Stateless Scene Agents**: Each activation processes only the current node, its immediate neighbors (1-hop), and recent event history—no persistent agent state across steps.
 
-# Add development dependency
-uv add --dev package-name
+**LangGraph Workflows**: Agent orchestration uses LangGraph for structured execution loops with explicit state management.
 
-# Sync dependencies
-uv sync
-```
+**NetworkX Hypergraph**: The narrative topology is modeled as a NetworkX multi-graph with typed edges and node attributes for entropy, content, and metadata.
 
-## Customization
+**LLM Mutation Strategy**: The `LLMMutationProposer` uses narrative context (last two scenes + graph metrics) to make intelligent mutation decisions via GPT-4o-mini.
 
-To use this template for your project:
+**Narrative Context Builder**: Extracts semantic context from the live graph—including previous/current scene text, node counts, and graph version—to inform LLM decisions.
 
-1. **Update `pyproject.toml`**:
-   - Change `name` to your project name
-   - Update `description`
-   - Add your dependencies
+**Mutation Engine**: Dedicated LangGraph subgraph for activation candidate selection, with scene-preference logic over seed nodes to avoid seed-anchored churn.
 
-2. **Update `.env.example`**:
-   - Add your application-specific environment variables
+**Story Projection**: Deterministic rendering of narrative flow via FOLLOWS edges (mainline) and BRANCHES_FROM edges (branch numbering), with detached scene detection.
 
-3. **Update `config/env.py`**:
-   - Add Pydantic fields for your environment variables
-
-4. **Create your application code**:
-   - Add your modules and packages
-   - Import and use the settings/logging configuration
+**In-Memory Sessions**: Graphs and session state live entirely in memory during runtime—ephemeral by design for the terminal MVP.
 
 ## License
 

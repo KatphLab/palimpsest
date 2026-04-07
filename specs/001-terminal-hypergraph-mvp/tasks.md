@@ -145,19 +145,19 @@
 
 ### Tests for User Story 3 (REQUIRED)
 
-- [ ] T033 [P] [US3] Write failing contract tests for mutation stream ordering and `target_ids` semantics in `tests/contracts/test_event_stream_contract.py`
-- [ ] T034 [P] [US3] Write failing contract tests for export artifact schema and required fields in `tests/contracts/test_export_artifact_contract.py`
-- [ ] T035 [P] [US3] Write failing integration test for entropy monitoring and node inspection flow in `tests/integration/test_entropy_inspection_flow.py`
-- [ ] T036 [P] [US3] Write failing integration test for budget warning/breach alerts in `tests/integration/test_budget_alerting_flow.py`
-- [ ] T037 [P] [US3] Write failing integration test for export command path validation and artifact completeness in `tests/integration/test_export_session_flow.py`
+- [x] T033 [P] [US3] Write failing contract tests for mutation stream ordering and `target_ids` semantics in `tests/contracts/test_event_stream_contract.py`
+- [x] T034 [P] [US3] Write failing contract tests for export artifact schema and required fields in `tests/contracts/test_export_artifact_contract.py`
+- [x] T035 [P] [US3] Write failing integration test for entropy monitoring and node inspection flow in `tests/integration/test_entropy_inspection_flow.py`
+- [x] T036 [P] [US3] Write failing integration test for budget warning/breach alerts in `tests/integration/test_budget_alerting_flow.py`
+- [x] T037 [P] [US3] Write failing integration test for export command path validation and artifact completeness in `tests/integration/test_export_session_flow.py`
 
 ### Implementation for User Story 3
 
-- [ ] T038 [P] [US3] Implement coherence and budget telemetry models in `src/models/telemetry.py`
-- [ ] T039 [P] [US3] Implement export artifact builders and atomic file writer in `src/runtime/exporter.py`
-- [ ] T040 [US3] Implement mutation event append-only stream with monotonic sequence IDs in `src/runtime/event_log.py`
-- [ ] T041 [US3] Implement runtime inspect/export/telemetry command handlers in `src/runtime/session_runtime.py`
-- [ ] T042 [US3] Implement TUI mutation log, entropy hotspot view, and node detail panel in `src/tui/widgets.py`
+- [x] T038 [P] [US3] Implement coherence and budget telemetry models in `src/models/telemetry.py`
+- [x] T039 [P] [US3] Implement export artifact builders and atomic file writer in `src/runtime/exporter.py`
+- [x] T040 [US3] Implement mutation event append-only stream with monotonic sequence IDs in `src/runtime/event_log.py`
+- [x] T041 [US3] Implement runtime inspect/export/telemetry command handlers in `src/runtime/session_runtime.py`
+- [x] T042 [US3] Implement TUI mutation log, entropy hotspot view, and node detail panel in `src/tui/widgets.py`
 
 **Checkpoint**: User Story 3 is independently functional and testable.
 
