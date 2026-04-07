@@ -126,3 +126,29 @@ def test_session_switcher_delegates_to_runtime_switch_session() -> None:
     switcher.switch_session(session_id)
 
     assert runtime.session_ids == [session_id]
+
+
+def test_shortcut_footer_bar_shows_idle_status_by_default() -> None:
+    """Footer bar should show idle status until generation starts."""
+
+    widgets = _widgets_module()
+    footer = widgets.ShortcutFooterBar()
+
+    assert "s Start" in footer.shortcuts_text()
+    assert footer.status_text() == "Idle"
+
+
+def test_shortcut_footer_bar_shows_spinner_when_generating() -> None:
+    """Footer bar should show spinner-based generating status."""
+
+    widgets = _widgets_module()
+    footer = widgets.ShortcutFooterBar()
+    footer.set_generating(True)
+
+    first = footer.status_text()
+    footer.advance_spinner_frame()
+    second = footer.status_text()
+
+    assert first.endswith("Generating scene...")
+    assert second.endswith("Generating scene...")
+    assert first != second

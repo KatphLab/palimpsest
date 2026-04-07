@@ -1,5 +1,7 @@
 # Phase 0 Research: Terminal Self-Editing Narrative MVP
 
+**Spec Version**: 1.1.0
+
 This document resolves technical ambiguities for the terminal MVP into implementation-ready decisions.
 
 ## 1) Runtime ownership and session control
@@ -28,8 +30,8 @@ This document resolves technical ambiguities for the terminal MVP into implement
 
 ## 4) Textual refresh and event model
 
-- Decision: Run the TUI on the main asyncio loop and publish runtime updates through Textual messages. Use a periodic refresh tick of 250 ms, but only redraw when the session snapshot version changes. Background session work posts immutable snapshot/event messages back to the UI via `call_from_thread` or `post_message`.
-- Rationale: Message passing avoids thread-safety issues, while a short tick interval gives headroom to satisfy the 500 ms freshness requirement even under light load.
+- Decision: Run the TUI on the main asyncio loop and refresh the active-session panel on explicit user interactions (seed-screen callback and continue action), not on a periodic timer. The session panel remains scrollable for overflow content, and story text is rendered through a deterministic projection of seed, mainline flow, branches, and detached scenes.
+- Rationale: Explicit refresh points simplify runtime/TUI coupling, avoid background refresh races, and keep story rendering deterministic and inspectable while still allowing manual cycle stepping.
 - Alternatives considered:
   - Pure reactive redraws with no timer.
   - A separate polling thread that reads runtime state directly.
@@ -60,4 +62,4 @@ This document resolves technical ambiguities for the terminal MVP into implement
 
 ## Resulting implementation posture
 
-These decisions lock the MVP into a single-owner, typed, event-driven runtime with NetworkX as the graph store, LangGraph as the orchestration layer, Textual as the presentation layer, and Pydantic v2 as the contract boundary. Autonomous mutation is handled by a dedicated LangGraph proposer path that uses LLM-selected single-node activation, immediate scene generation for accepted `add_node` actions, and full-subgraph semantics for `prune_branch`.
+These decisions lock the MVP into a single-owner, typed, event-driven runtime with NetworkX as the graph store, LangGraph as the orchestration layer, Textual as the presentation layer, and Pydantic v2 as the contract boundary. Mutation behavior is handled by a dedicated LangGraph proposer path that uses LLM-selected single-node activation, immediate scene generation for accepted `add_node` actions, full-subgraph semantics for `prune_branch`, and explicit cycle advancement from the TUI.

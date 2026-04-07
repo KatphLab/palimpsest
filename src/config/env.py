@@ -11,7 +11,6 @@ __all__: list[str] = ["Settings", "get_settings"]
 
 _DEFAULT_OPENAI_MODEL: Final[str] = "accounts/fireworks/routers/kimi-k2p5-turbo"
 _DEFAULT_OPENAI_BASE_URL: Final[str] = "https://api.fireworks.ai/inference/v1"
-_DEFAULT_TUI_REFRESH_MS: Final[int] = 250
 _DEFAULT_STALE_VIEW_GUARDRAIL_MS: Final[int] = 500
 _DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS: Final[int] = 60_000
 _DEFAULT_MUTATION_BURST_TRIGGER_COUNT: Final[int] = 3
@@ -45,7 +44,6 @@ class Settings(BaseSettings):
         ge=0.0,
         le=1.0,
     )
-    session_refresh_ms: int = Field(default=_DEFAULT_TUI_REFRESH_MS, ge=50)
     stale_view_guardrail_ms: int = Field(
         default=_DEFAULT_STALE_VIEW_GUARDRAIL_MS, ge=100
     )

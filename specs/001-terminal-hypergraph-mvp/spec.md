@@ -2,23 +2,24 @@
 
 **Feature Branch**: `001-terminal-hypergraph-mvp`
 **Created**: 2026-04-06
+**Spec Version**: 1.2.0
 **Status**: Draft
 **Input**: User description: `@docs/prd.md`
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - Seed and Observe Live Narrative Growth (Priority: P1)
+### User Story 1 - Seed and Step Through Narrative Growth (Priority: P1)
 
-As a narrative researcher, I can enter a short story seed in the terminal and immediately observe the system grow a connected narrative graph in real time.
+As a narrative researcher, I can enter a short story seed in the terminal and step the simulation cycle-by-cycle while the story-flow panel updates.
 
-**Why this priority**: This is the core value of the product; without live autonomous narrative growth from a seed, no other workflow is meaningful.
+**Why this priority**: This is the core value of the product; without seed-to-story growth from a seed, no other workflow is meaningful.
 
-**Independent Test**: This can be fully tested by starting a new session, submitting one seed, and confirming that live graph updates continue without manual pruning.
+**Independent Test**: This can be fully tested by starting a new session, submitting one seed, pressing continue to advance cycles, and confirming the panel reflects ordered story growth.
 
 **Acceptance Scenarios**:
 
 1. **Given** a user has opened the terminal runtime, **When** they submit a valid seed, **Then** the first scene appears within 2 seconds and the session enters active simulation.
-2. **Given** an active simulation, **When** the runtime updates, **Then** the user sees refreshed graph state at least every 500 ms and can identify active nodes.
+2. **Given** an active simulation, **When** the user triggers the continue control, **Then** the runtime advances exactly one cycle and the panel refresh reflects the updated narrative flow.
 3. **Given** an active simulation, **When** the user pauses and resumes, **Then** progression halts and restarts without losing current session state.
 
 ---
@@ -37,6 +38,7 @@ As a speculative modeler, I can protect specific narrative links and fork an act
 2. **Given** a running session, **When** the user creates a fork, **Then** a new independent session is created with its own session identifier.
 3. **Given** an original session and a forked session, **When** the user continues running both, **Then** updates in one session do not alter the other.
 4. **Given** a running session, **When** autonomous mutation is evaluating a cycle, **Then** at most one node is activated and at most one mutation is proposed and resolved for that cycle.
+5. **Given** a running session, **When** autonomous mutation evaluates a cycle, **Then** mutation action selection is decided by an LLM using narrative context (including at minimum the last two scenes and graph topology counts).
 
 ---
 
@@ -54,6 +56,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 2. **Given** recent mutations exist, **When** the user inspects the event stream, **Then** events appear in chronological order with actor and target identifiers.
 3. **Given** an active session, **When** the user exports the graph snapshot, **Then** a complete session graph artifact is produced for offline analysis.
 4. **Given** an accepted `add_node` mutation, **When** the mutation is applied, **Then** the runtime generates scene text immediately for the created node in the same mutation cycle.
+5. **Given** autonomous mutation decisions occur, **When** the user observes runtime output, **Then** decision source, action, confidence, and reasoning are emitted to both console and file logs.
 
 ---
 
@@ -71,7 +74,7 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 
 - **FR-001**: The system MUST allow users to start a session by submitting a seed up to 280 characters.
 - **FR-002**: The system MUST create the initial scene representation within 2 seconds of valid seed submission.
-- **FR-003**: The system MUST provide live session state updates at least every 500 ms while running.
+- **FR-003**: The system MUST provide an explicit continue control that advances exactly one session cycle and refreshes the active-session panel.
 - **FR-004**: The system MUST allow users to pause and resume simulation without losing current session state.
 - **FR-005**: Users MUST be able to lock and unlock narrative relationships during an active session.
 - **FR-006**: The system MUST prevent removal of locked relationships during autonomous mutation handling.
@@ -89,11 +92,16 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 - **FR-018**: The system MUST resolve at most one autonomous mutation per cycle (propose -> safety filter -> applied/rejected/cooled_down terminal outcome).
 - **FR-019**: The system MUST generate scene content immediately when an `add_node` mutation is accepted.
 - **FR-020**: The system MUST interpret `prune_branch` as removal of an entire targeted subgraph while preserving seed-protected and otherwise protected graph state.
+- **FR-021**: The TUI active-session panel MUST render deterministic narrative projection sections for seed, ordered story flow, and detached scenes.
+- **FR-022**: The active-session panel MUST support overflow scrolling without forced auto-scroll jumps during refresh.
+- **FR-023**: The mutation-action selection stage MUST pass narrative context to the LLM that includes, at minimum, the last two scene texts, node count, edge count, branch count, and active candidate identifier.
+- **FR-024**: The system MUST have the LLM decide whether to expand, prune, rewrite, or skip mutation actions using narrative interestingness versus boredom heuristics.
+- **FR-025**: The system MUST fall back to a deterministic proposer when the LLM action-decision call fails, times out, or returns invalid structured output.
+- **FR-026**: The system MUST log mutation-decision telemetry (decision source, action, confidence, reasoning, and proposal id) to both console and rotating file sinks.
 
 ### Constitution Alignment _(mandatory)_
 
 - **CA-001 Coherence**: The feature MUST preserve narrative coherence through continuous local scoring and periodic global checks, with a target global coherence score of at least 0.80 during a 30-minute run.
-- **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: at most one mutation per node activation, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
 - **CA-002 Mutation Safety**: The feature MUST enforce bounded mutation behavior: LLM-driven single-node activation per cycle, at most one mutation resolved per cycle, no deletion of protected seed state, no removal of locked relationships, and cooldown behavior during mutation bursts.
 - **CA-003 Typed Contracts**: The feature MUST define and validate structured contracts for session state, node state, edge state, mutation decisions, entropy evaluations, and event records; malformed outputs MUST be rejected or safely downgraded.
 - **CA-004 Test-First Verification**: The feature MUST define failing acceptance tests before implementation for seed flow, pause/resume controls, lock/fork behaviors, mutation logging, entropy visibility, termination voting, and budget tracking outcomes.
@@ -122,8 +130,8 @@ As a narrative researcher, I can monitor entropy hotspots and mutation decisions
 ## Assumptions
 
 - Sessions are single-user, ephemeral, and do not require cross-session persistence for this MVP.
-- Users run the feature in a terminal environment that supports interactive command input and periodic state refresh.
+- Users run the feature in a terminal environment that supports interactive command input and explicit continue-cycle controls.
 - Users need export artifacts for analysis, but durable user accounts and collaboration are out of scope.
 - Command-driven controls for lock, fork, inspect, pause/resume, and export are available within the same terminal workflow.
 - The product team will define and maintain coherence and entropy evaluation rubrics consistently across validation runs.
-- A standard run means one foreground session started with the documented defaults in plan.md, one valid seed, and no manual intervention after startup.
+- A standard run means one foreground session started with the documented defaults in plan.md, one valid seed, and explicit user-issued cycle advancement during observation.

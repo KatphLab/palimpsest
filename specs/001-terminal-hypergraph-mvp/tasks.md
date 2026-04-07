@@ -1,5 +1,7 @@
 # Tasks: Terminal Self-Editing Narrative MVP
 
+**Spec Version**: 1.2.0
+
 **Input**: Design documents from `/specs/001-terminal-hypergraph-mvp/`
 **Prerequisites**: `plan.md` (required), `spec.md` (required), `research.md`, `data-model.md`, `contracts/`, `quickstart.md`
 
@@ -45,16 +47,16 @@
 
 ---
 
-## Phase 3: User Story 1 - Seed and Observe Live Narrative Growth (Priority: P1) 🎯 MVP
+## Phase 3: User Story 1 - Seed and Step Narrative Growth (Priority: P1) 🎯 MVP
 
-**Goal**: Let a user start a session from a valid seed and observe autonomous live narrative growth with pause/resume controls.
+**Goal**: Let a user start a session from a valid seed and step deterministic narrative growth with pause/resume controls.
 
-**Independent Test**: Start one session with a valid seed, verify first scene appears within 2 seconds, observe updates at <=500 ms staleness, then pause/resume without losing session state.
+**Independent Test**: Start one session with a valid seed, verify first scene appears within 2 seconds, verify no background auto-advance, then use continue to advance one cycle at a time and pause/resume without losing session state.
 
 ### Tests for User Story 1 (REQUIRED)
 
 - [x] T015 [P] [US1] Write failing integration test for seed-to-first-scene latency in `tests/integration/test_seed_startup_flow.py`
-- [x] T016 [P] [US1] Write failing integration test for live refresh freshness (`<=500 ms`) in `tests/integration/test_live_refresh_freshness.py`
+- [x] T016 [P] [US1] Write failing integration test to verify no background auto-advance without a manual cycle in `tests/integration/test_autonomous_progress_after_start.py`
 - [x] T017 [P] [US1] Write failing integration test for pause/resume state continuity in `tests/integration/test_pause_resume_flow.py`
 - [x] T018 [P] [US1] Write failing command contract tests for `start_session`, `pause_session`, and `resume_session` in `tests/contracts/test_session_control_commands.py`
 
@@ -63,9 +65,11 @@
 - [x] T019 [P] [US1] Implement `Session` and `SessionSnapshot` models with seed validation in `src/models/session.py`
 - [x] T020 [P] [US1] Implement `SceneNode` model and activation metadata rules in `src/models/node.py`
 - [x] T021 [P] [US1] Implement seed bootstrapping and first-scene generation agent in `src/agents/scene_agent.py`
-- [x] T022 [US1] Implement session run loop, tick scheduling, and pause/resume transitions in `src/runtime/session_runtime.py`
-- [x] T023 [US1] Implement TUI app shell with active-session panel and refresh subscription in `src/tui/app.py`
+- [x] T022 [US1] Implement session cycle advancement entrypoint (`advance_session_cycle`) and pause/resume transitions in `src/runtime/session_runtime.py`
+- [x] T023 [US1] Implement TUI app shell with manual panel refresh callback and continue-cycle action in `src/tui/app.py`
 - [x] T024 [US1] Implement seed entry and pause/resume interaction handlers in `src/tui/screens.py`
+- [x] T058 [US1] Implement deterministic story-flow projection renderer for seed/mainline/branch/detached sections in `src/tui/story_projection.py`
+- [x] T059 [US1] Add TUI integration coverage for growing story-flow rendering and detached scene projection in `tests/integration/test_live_story_flow_rendering.py` and `tests/unit/test_tui_story_projection.py`
 
 **Checkpoint**: User Story 1 is independently functional and testable.
 
@@ -93,18 +97,43 @@
 
 ### Follow-up Implementation for User Story 2 (Autonomous Mutation Cycle)
 
-- [ ] T048 [P] [US2] Write failing unit tests for LangGraph mutation proposer subgraph with single-node activation in `tests/unit/test_mutation_engine.py`
-- [ ] T049 [P] [US2] Write failing integration test for one-mutation-per-cycle enforcement in `tests/integration/test_single_mutation_cycle.py`
-- [ ] T050 [P] [US2] Write failing integration test for immediate scene generation on accepted `add_node` mutation in `tests/integration/test_add_node_immediate_generation.py`
-- [ ] T051 [P] [US2] Write failing integration test for `prune_branch` full-subgraph removal with protected-state guardrails in `tests/integration/test_prune_branch_subgraph.py`
-- [ ] T052 [P] [US2] Implement dedicated mutation proposer LangGraph subgraph in `src/agents/mutation_engine.py`
-- [ ] T053 [US2] Extend mutation apply path for all action types (`add_node`, `add_edge`, `remove_edge`, `rewrite_node`, `prune_branch`, `no_op`) in `src/agents/mutation_agent.py`
-- [ ] T054 [US2] Extend scene agent APIs for immediate generation after accepted `add_node` and rewrite support in `src/agents/scene_agent.py`
-- [ ] T055 [US2] Implement runtime mutation orchestration loop (propose -> review -> apply -> emit outcome) in `src/runtime/session_runtime.py`
-- [ ] T056 [US2] Implement node cooldown and mutation burst guardrails in runtime loop state in `src/runtime/session_runtime.py`
-- [ ] T057 [US2] Emit mutation lifecycle events (`proposed`, `applied`, `rejected`, `cooled_down`) with monotonic sequencing in `src/runtime/session_runtime.py`
+- [x] T048 [P] [US2] Write failing unit tests for LangGraph mutation proposer subgraph with single-node activation in `tests/unit/test_mutation_engine.py`
+- [x] T049 [P] [US2] Write failing integration test for one-mutation-per-cycle enforcement in `tests/integration/test_single_mutation_cycle.py`
+- [x] T050 [P] [US2] Write failing integration test for immediate scene generation on accepted `add_node` mutation in `tests/integration/test_add_node_immediate_generation.py`
+- [x] T051 [P] [US2] Write failing integration test for `prune_branch` full-subgraph removal with protected-state guardrails in `tests/integration/test_prune_branch_subgraph.py`
+- [x] T052 [P] [US2] Implement dedicated mutation proposer LangGraph subgraph in `src/agents/mutation_engine.py`
+- [x] T053 [US2] Extend mutation apply path for all action types (`add_node`, `add_edge`, `remove_edge`, `rewrite_node`, `prune_branch`, `no_op`) in `src/agents/mutation_agent.py`
+- [x] T054 [US2] Extend scene agent APIs for immediate generation after accepted `add_node` and rewrite support in `src/agents/scene_agent.py`
+- [x] T055 [US2] Implement runtime mutation orchestration loop (propose -> review -> apply -> emit outcome) in `src/runtime/session_runtime.py`
+- [x] T056 [US2] Implement node cooldown and mutation burst guardrails in runtime loop state in `src/runtime/session_runtime.py`
+- [x] T057 [US2] Emit mutation lifecycle events (`proposed`, `applied`, `rejected`, `cooled_down`) with monotonic sequencing in `src/runtime/session_runtime.py`
 
-**Checkpoint**: User Story 2 is independently functional and testable, including continuous autonomous mutation cycles.
+**Checkpoint**: User Story 2 is independently functional and testable, including explicit cycle-based mutation orchestration.
+
+---
+
+## Phase 4.5: LLM Mutation Strategy Layer (Pre-US3)
+
+**Purpose**: Replace static mutation action proposal heuristics with an LLM-driven action selector that evaluates narrative context, while preserving deterministic fallback and mutation safety.
+
+### Tests for Phase 4.5 (REQUIRED)
+
+- [ ] T060 [P] [US2] Write failing unit tests for narrative-context extraction (last two scenes + graph counters) in `tests/unit/test_narrative_context_builder.py`
+- [ ] T061 [P] [US2] Write failing unit tests for LLM mutation-action selection parsing and validation in `tests/unit/test_llm_mutation_proposer.py`
+- [ ] T062 [P] [US2] Write failing unit tests for deterministic fallback selection when LLM output is invalid/unavailable in `tests/unit/test_deterministic_mutation_proposer.py`
+- [ ] T063 [P] [US2] Write failing integration test proving repeated continue actions can grow beyond two scenes in `tests/integration/test_llm_mutation_progression.py`
+- [ ] T064 [P] [US2] Write failing integration test for decision-log emission to console and `app.log` in `tests/integration/test_mutation_decision_logging.py`
+
+### Implementation for Phase 4.5
+
+- [ ] T065 [P] [US2] Implement typed narrative context models in `src/models/narrative_context.py`
+- [ ] T066 [P] [US2] Implement narrative context builder from live graph/session state in `src/agents/narrative_context_builder.py`
+- [ ] T067 [P] [US2] Implement deterministic mutation proposer fallback in `src/agents/deterministic_mutation_proposer.py`
+- [ ] T068 [US2] Implement LLM mutation proposer with structured-output parsing and fallback routing in `src/agents/llm_mutation_proposer.py`
+- [ ] T069 [US2] Integrate LLM mutation proposer into runtime mutation-cycle orchestration in `src/runtime/session_runtime.py`
+- [ ] T070 [US2] Update logging configuration for mutation-decision telemetry in both console and rotating file handlers in `src/config/logging_config.py`
+
+**Checkpoint**: LLM-driven mutation action selection is active with deterministic fallback, and decision telemetry is visible in both console and file logs.
 
 ---
 
@@ -153,13 +182,15 @@
 - Setup (Phase 1): no dependencies
 - Foundational (Phase 2): depends on Setup completion and blocks all user stories
 - User Story phases (Phases 3-5): each depends on Foundational completion
+- Phase 4.5 depends on US2 mutation-orchestration completion and blocks US3 observability implementation to avoid rework.
 - Polish (Phase 6): depends on completion of the target user stories
 
 ### User Story Dependencies
 
 - US1 (P1): starts immediately after Foundational; delivers MVP runtime value
 - US2 (P2): starts after Foundational; lock/fork controls are independent, while autonomous mutation-cycle follow-up tasks depend on US1 runtime loop and scene generation contracts
-- US3 (P3): starts after Foundational; can run in parallel with US2 if shared runtime files are coordinated
+- Phase 4.5 (pre-US3): starts after US2 mutation-cycle tasks; introduces LLM mutation action strategy and logging telemetry
+- US3 (P3): starts after Phase 4.5 so observability surfaces align with finalized mutation-decision telemetry
 
 ### Within Each User Story
 
@@ -174,9 +205,10 @@
 
 - Setup: T004 can run in parallel with T005 after T001
 - Foundational: T007, T008, and T011 can run in parallel once T006 is written
-- US1: T015-T018 can run in parallel; T019-T021 can run in parallel
+- US1: T015-T018 can run in parallel; T019-T021 can run in parallel; T058 and T059 can run in parallel after T023
 - US2: T025-T027 can run in parallel; T028-T030 can run in parallel
 - US2 follow-up: T048-T051 can run in parallel; T052 and T054 can run in parallel before T055-T057
+- Phase 4.5: T060-T064 can run in parallel; T065-T067 can run in parallel before T068-T070
 - US3: T033-T037 can run in parallel; T038-T039 can run in parallel
 - Polish: T043 and T044 can run in parallel
 
@@ -187,7 +219,7 @@
 ```bash
 # Run independent failing tests first:
 Task: "T015 [US1] tests/integration/test_seed_startup_flow.py"
-Task: "T016 [US1] tests/integration/test_live_refresh_freshness.py"
+Task: "T016 [US1] tests/integration/test_autonomous_progress_after_start.py"
 Task: "T017 [US1] tests/integration/test_pause_resume_flow.py"
 Task: "T018 [US1] tests/contracts/test_session_control_commands.py"
 
@@ -242,8 +274,9 @@ Task: "T039 [US3] src/runtime/exporter.py"
 1. Foundation ready (Phases 1-2).
 2. Deliver US1 and validate independently.
 3. Deliver US2 and validate lock/fork independence.
-4. Deliver US3 and validate observability/export coverage.
-5. Finish with Polish tasks for global checks and documentation.
+4. Deliver Phase 4.5 LLM mutation strategy and validate >2-scene progression plus decision logging.
+5. Deliver US3 and validate observability/export coverage.
+6. Finish with Polish tasks for global checks and documentation.
 
 ### Parallel Team Strategy
 

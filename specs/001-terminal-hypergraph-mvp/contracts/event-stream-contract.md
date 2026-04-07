@@ -1,5 +1,7 @@
 # Event Stream Contract
 
+**Spec Version**: 1.1.0
+
 Boundary: session runtime -> Textual UI, exporter, and audit log.
 
 The event stream is append-only, strictly ordered, and fully typed with Pydantic discriminated models.
@@ -76,7 +78,7 @@ class EventStreamEnvelope(BaseModel):
 - `MutationStreamEvent` is wire-compatible with the canonical `data-model.MutationEvent` audit record.
 - `MutationStreamEvent.outcome` uses the canonical `EventOutcome` enum (`success`, `blocked`, `warn`, `fail`) and remains optional when no terminal outcome exists.
 - Mutation events must include enough actor/target metadata to replay decisions offline.
-- Autonomous mutation processing is serialized: at most one `mutation_proposed` and exactly one terminal mutation outcome event (`mutation_applied` or `mutation_rejected`) per mutation cycle.
+- Mutation-cycle processing is serialized: at most one `mutation_proposed` and at most one terminal mutation outcome event (`mutation_applied`, `mutation_rejected`, or cooled-down equivalent) per cycle.
 
 ## Event semantics
 
@@ -86,7 +88,7 @@ class EventStreamEnvelope(BaseModel):
 - `mutation_proposed`: emitted before safety filtering.
 - `mutation_applied` / `mutation_rejected`: emitted after safety evaluation.
 - `mutation_applied` for `add_node` must reflect that scene generation completed in the same cycle.
-- `mutation_rejected` also covers cooldown-suppressed cycles (with outcome and reason indicating cooldown).
+- Cooldown-suppressed cycles are represented as a terminal cooled-down outcome in runtime lifecycle events.
 - `coherence_sampled`: emitted on local or global checks.
 - `budget_warning` / `budget_breach`: emitted when telemetry crosses thresholds.
 - `termination_voted` / `session_terminated`: emitted when majority voting closes the run.
@@ -94,7 +96,7 @@ class EventStreamEnvelope(BaseModel):
 
 ## Requirement coverage
 
-- FR-003: refreshable stream of live updates.
+- FR-003: cycle-step update stream semantics for continue-driven progression.
 - FR-008: node telemetry events.
 - FR-009: chronological mutation log.
 - FR-012/FR-013: safety and consistency-check events.

@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID, uuid4
 
+from textual.timer import Timer
+from textual.widgets import Static
+
 from models.commands import (
     CommandResult,
     CommandType,
@@ -18,11 +21,90 @@ from models.commands import (
 )
 
 __all__ = [
+    "ShortcutFooterBar",
     "SessionSwitcher",
     "handle_fork_request",
     "handle_lock_request",
     "handle_unlock_request",
 ]
+
+
+class ShortcutFooterBar(Static):
+    """Dedicated footer bar that shows shortcuts and generation status."""
+
+    DEFAULT_CSS = """
+    ShortcutFooterBar {
+        dock: bottom;
+        height: 1;
+        background: $surface;
+        color: $text;
+        padding: 0 1;
+    }
+    """
+
+    _SPINNER_FRAMES = ("|", "/", "-", "\\")
+
+    def __init__(self, id: str | None = None) -> None:
+        super().__init__(id=id)
+        self._is_generating = False
+        self._spinner_index = 0
+        self._spinner_timer: Timer | None = None
+
+    def on_mount(self) -> None:
+        """Render the footer text when mounted."""
+
+        self._update_display()
+
+    def on_unmount(self) -> None:
+        """Stop spinner updates when unmounted."""
+
+        if self._spinner_timer is not None:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
+    def shortcuts_text(self) -> str:
+        """Return the static shortcuts legend shown in the footer."""
+
+        return "s Start   p Pause   r Resume   c Continue"
+
+    def status_text(self) -> str:
+        """Return the current runtime status text."""
+
+        if not self._is_generating:
+            return "Idle"
+
+        frame = self._SPINNER_FRAMES[self._spinner_index]
+        return f"{frame} Generating scene..."
+
+    def advance_spinner_frame(self) -> None:
+        """Advance the spinner and redraw the footer."""
+
+        self._spinner_index = (self._spinner_index + 1) % len(self._SPINNER_FRAMES)
+        self._update_display()
+
+    def set_generating(self, is_generating: bool) -> None:
+        """Toggle generation status and spinner activity."""
+
+        if self._is_generating == is_generating:
+            return
+
+        self._is_generating = is_generating
+        if is_generating:
+            self._spinner_index = 0
+            if self.is_mounted and self._spinner_timer is None:
+                self._spinner_timer = self.set_interval(
+                    0.15,
+                    self.advance_spinner_frame,
+                )
+        elif self._spinner_timer is not None:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
+        self._update_display()
+
+    def _update_display(self) -> None:
+        footer_text = f"{self.shortcuts_text()}    {self.status_text()}"
+        self.update(footer_text)
 
 
 class _CommandRuntime(Protocol):

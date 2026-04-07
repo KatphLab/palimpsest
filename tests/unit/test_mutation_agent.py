@@ -138,3 +138,189 @@ def test_mutation_agent_blocks_seed_protected_edge_removal() -> None:
     agent.apply_decision(decision, graph)
 
     assert graph.get_edge(edge_id) is not None
+
+
+def test_mutation_agent_reviews_and_applies_add_node() -> None:
+    """Add-node decisions should create a scene node and branch edge."""
+
+    session_id = UUID(int=2)
+    graph = SessionGraph()
+    graph.add_node(
+        GraphNode(
+            node_id="seed",
+            session_id=session_id,
+            node_kind=NodeKind.SEED,
+            text="seed text",
+        )
+    )
+
+    proposal = MutationProposal(
+        decision_id="mutation-add-node-1",
+        session_id=session_id,
+        actor_node_id="seed",
+        target_ids=[],
+        action_type=MutationActionType.ADD_NODE,
+        risk_score=0.2,
+    )
+    agent = MutationAgent()
+
+    decision = agent.review_proposal(proposal, graph)
+    agent.apply_decision(decision, graph)
+
+    assert decision.accepted is True
+    created_nodes = [node_id for node_id in graph.graph.nodes if node_id != "seed"]
+    assert len(created_nodes) == 1
+    new_node_id = created_nodes[0]
+    assert graph.get_edge(f"seed->{new_node_id}") is not None
+
+
+def test_mutation_agent_handles_add_edge_rewrite_and_prune_paths() -> None:
+    """Agent should route add-edge, rewrite-node, and prune-branch branches."""
+
+    session_id = UUID(int=3)
+    graph = SessionGraph()
+    graph.add_node(
+        GraphNode(
+            node_id="seed",
+            session_id=session_id,
+            node_kind=NodeKind.SEED,
+            text="seed text",
+        )
+    )
+    graph.add_node(
+        GraphNode(
+            node_id="scene-a",
+            session_id=session_id,
+            node_kind=NodeKind.SCENE,
+            text="scene a",
+        )
+    )
+    graph.add_node(
+        GraphNode(
+            node_id="scene-b",
+            session_id=session_id,
+            node_kind=NodeKind.SCENE,
+            text="scene b",
+        )
+    )
+    graph.add_edge(
+        GraphEdge(
+            edge_id="seed->scene-a",
+            session_id=session_id,
+            source_node_id="seed",
+            target_node_id="scene-a",
+            relation_type=RelationType.BRANCHES_FROM,
+        )
+    )
+    graph.graph.nodes["scene-a"]["scene_node"] = graph.graph.nodes["scene-a"]["node"]
+
+    agent = MutationAgent()
+
+    add_edge_decision = agent.review_proposal(
+        MutationProposal(
+            decision_id="mutation-add-edge-1",
+            session_id=session_id,
+            actor_node_id="seed",
+            target_ids=["scene-b"],
+            action_type=MutationActionType.ADD_EDGE,
+            risk_score=0.2,
+        ),
+        graph,
+    )
+    assert add_edge_decision.accepted is True
+    agent.apply_decision(add_edge_decision, graph)
+    assert graph.get_edge("seed->scene-b") is not None
+
+    rewrite_decision = agent.review_proposal(
+        MutationProposal(
+            decision_id="mutation-rewrite-1",
+            session_id=session_id,
+            actor_node_id="seed",
+            target_ids=["scene-a"],
+            action_type=MutationActionType.REWRITE_NODE,
+            risk_score=0.2,
+        ),
+        graph,
+    )
+    assert rewrite_decision.accepted is True
+    agent.apply_decision(rewrite_decision, graph)
+    assert "rewritten mutation-rewrite-1" in graph.graph.nodes["scene-a"]["node"].text
+
+    prune_decision = agent.review_proposal(
+        MutationProposal(
+            decision_id="mutation-prune-1",
+            session_id=session_id,
+            actor_node_id="seed",
+            target_ids=["scene-a"],
+            action_type=MutationActionType.PRUNE_BRANCH,
+            risk_score=0.2,
+        ),
+        graph,
+    )
+    assert prune_decision.accepted is True
+    agent.apply_decision(prune_decision, graph)
+    assert graph.graph.has_node("scene-a") is False
+
+
+def test_mutation_agent_rejects_missing_targets_and_branch_protection() -> None:
+    """Agent should reject missing edge endpoints and protected branch roots."""
+
+    session_id = UUID(int=4)
+    graph = SessionGraph()
+    graph.add_node(
+        GraphNode(
+            node_id="seed",
+            session_id=session_id,
+            node_kind=NodeKind.SEED,
+            text="seed text",
+        )
+    )
+    graph.add_node(
+        GraphNode(
+            node_id="scene-a",
+            session_id=session_id,
+            node_kind=NodeKind.SCENE,
+            text="scene a",
+        )
+    )
+    graph.add_edge(
+        GraphEdge(
+            edge_id="seed->scene-a",
+            session_id=session_id,
+            source_node_id="seed",
+            target_node_id="scene-a",
+            relation_type=RelationType.BRANCHES_FROM,
+            locked=True,
+            protected_reason=ProtectionReason.USER_LOCK,
+        )
+    )
+
+    agent = MutationAgent()
+
+    add_edge_decision = agent.review_proposal(
+        MutationProposal(
+            decision_id="mutation-add-edge-missing",
+            session_id=session_id,
+            actor_node_id="seed",
+            target_ids=["missing-node"],
+            action_type=MutationActionType.ADD_EDGE,
+            risk_score=0.2,
+        ),
+        graph,
+    )
+    assert add_edge_decision.accepted is False
+    assert add_edge_decision.rejected_reason == "missing edge endpoint"
+
+    prune_decision = agent.review_proposal(
+        MutationProposal(
+            decision_id="mutation-prune-protected",
+            session_id=session_id,
+            actor_node_id="seed",
+            target_ids=["seed"],
+            action_type=MutationActionType.PRUNE_BRANCH,
+            risk_score=0.2,
+        ),
+        graph,
+    )
+    assert prune_decision.accepted is False
+    assert prune_decision.rejected_reason in {"protected node", "locked edge"}

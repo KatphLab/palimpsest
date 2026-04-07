@@ -1,5 +1,7 @@
 # Export Artifact Contract
 
+**Spec Version**: 1.1.0
+
 Boundary: session runtime -> JSON export file.
 
 The export artifact is a frozen, schema-versioned JSON document for offline analysis and replay.
