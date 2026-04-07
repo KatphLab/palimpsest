@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from collections.abc import Iterable
 from datetime import datetime, timezone
 
 from graph.session_graph import SessionGraph
@@ -453,10 +454,7 @@ class MutationAgent:
         return proposal.actor_node_id
 
     def _node_target_id(self, proposal: MutationProposal) -> str:
-        if proposal.target_ids:
-            return proposal.target_ids[0]
-
-        return proposal.actor_node_id
+        return self._anchor_node_id(proposal)
 
     def _edge_endpoints(self, proposal: MutationProposal) -> tuple[str, str]:
         if len(proposal.target_ids) >= 2:
@@ -484,52 +482,83 @@ class MutationAgent:
                 continue
 
             node_ids.append(node_id)
-            for _, target_node_id, _, edge_data in session_graph.graph.out_edges(
-                node_id, keys=True, data=True
-            ):
-                edge = edge_data.get("edge") if isinstance(edge_data, dict) else None
-                if not isinstance(edge, GraphEdge):
-                    continue
-
-                if edge.relation_type is not RelationType.BRANCHES_FROM:
-                    continue
-
+            for target_node_id in self._branch_children(session_graph, node_id):
                 if target_node_id not in visited:
                     pending.append(target_node_id)
 
         return node_ids
 
+    def _branch_children(self, session_graph: SessionGraph, node_id: str) -> list[str]:
+        child_node_ids: list[str] = []
+        for _, target_node_id, _, edge_data in session_graph.graph.out_edges(
+            node_id, keys=True, data=True
+        ):
+            edge = edge_data.get("edge") if isinstance(edge_data, dict) else None
+            if not isinstance(edge, GraphEdge):
+                continue
+
+            if edge.relation_type is RelationType.BRANCHES_FROM:
+                child_node_ids.append(target_node_id)
+
+        return child_node_ids
+
     def _branch_protection_reason(
         self, session_graph: SessionGraph, node_ids: list[str]
     ) -> str | None:
         for node_id in node_ids:
-            node_data = self._node_data(session_graph, node_id)
-            if node_data is None:
-                return "missing branch node"
+            node_reason = self._branch_node_protection_reason(session_graph, node_id)
+            if node_reason is not None:
+                return node_reason
 
-            raw_node = node_data.get("node")
-            node_to_check: GraphNode | SceneNode | None = None
-            if isinstance(raw_node, (GraphNode, SceneNode)):
-                node_to_check = raw_node
-            if self._is_protected_node(node_to_check):
-                return "protected node"
+            edge_reason = self._branch_edge_protection_reason(session_graph, node_id)
+            if edge_reason is not None:
+                return edge_reason
 
-            for edge_view in (
-                session_graph.graph.out_edges(node_id, keys=True, data=True),
-                session_graph.graph.in_edges(node_id, keys=True, data=True),
-            ):
-                for _, _, _, edge_data in edge_view:
-                    edge = (
-                        edge_data.get("edge") if isinstance(edge_data, dict) else None
-                    )
-                    if not isinstance(edge, GraphEdge):
-                        continue
+        return None
 
-                    if edge.locked:
-                        return "locked edge"
+    def _branch_node_protection_reason(
+        self, session_graph: SessionGraph, node_id: str
+    ) -> str | None:
+        node_data = self._node_data(session_graph, node_id)
+        if node_data is None:
+            return "missing branch node"
 
-                    if edge.protected_reason is not None:
-                        return "protected edge"
+        raw_node = node_data.get("node")
+        node_to_check = (
+            raw_node if isinstance(raw_node, (GraphNode, SceneNode)) else None
+        )
+        if self._is_protected_node(node_to_check):
+            return "protected node"
+
+        return None
+
+    def _branch_edge_protection_reason(
+        self, session_graph: SessionGraph, node_id: str
+    ) -> str | None:
+        edge_views = (
+            session_graph.graph.out_edges(node_id, keys=True, data=True),
+            session_graph.graph.in_edges(node_id, keys=True, data=True),
+        )
+        for edge_view in edge_views:
+            reason = self._edge_view_protection_reason(edge_view)
+            if reason is not None:
+                return reason
+
+        return None
+
+    def _edge_view_protection_reason(
+        self, edge_view: Iterable[tuple[object, object, object, object]]
+    ) -> str | None:
+        for _, _, _, edge_data in edge_view:
+            edge = edge_data.get("edge") if isinstance(edge_data, dict) else None
+            if not isinstance(edge, GraphEdge):
+                continue
+
+            if edge.locked:
+                return "locked edge"
+
+            if edge.protected_reason is not None:
+                return "protected edge"
 
         return None
 

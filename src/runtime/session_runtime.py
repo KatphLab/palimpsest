@@ -57,6 +57,7 @@ _MAX_RUNTIME_EVENTS = 1000
 _NO_ACTIVE_SESSION_ERROR = "no active session exists"
 _RUNTIME_MUTATION_ORCHESTRATED_KEY = "runtime_mutation_orchestrated"
 _RUNTIME_MUTATION_RESOLVED_KEY = "runtime_mutation_cycle_resolved"
+_MUTATION_CYCLE_RESOLVED_ERROR = "mutation cycle already resolved"
 _RUNTIME_SESSION_MUTATION_COOLDOWN = timedelta(
     milliseconds=_DEFAULT_SESSION_MUTATION_COOLDOWN_MS
 )
@@ -77,6 +78,57 @@ _SESSION_GRAPH_GET_EDGE_ORIGINAL: (
 ) = None
 _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL: Callable[[SessionGraph, str], None] | None = None
 _SESSION_GRAPH_MUTATION_HOOKS_INSTALLED = False
+
+
+def _is_runtime_orchestrated(session_graph: SessionGraph) -> bool:
+    return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_ORCHESTRATED_KEY))
+
+
+def _is_cycle_resolved(session_graph: SessionGraph) -> bool:
+    return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_RESOLVED_KEY))
+
+
+def _raise_if_cycle_resolved(session_graph: SessionGraph) -> None:
+    if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(session_graph):
+        raise ValueError(_MUTATION_CYCLE_RESOLVED_ERROR)
+
+
+def _guarded_add_node(session_graph: SessionGraph, node: GraphNode) -> None:
+    _raise_if_cycle_resolved(session_graph)
+    assert _SESSION_GRAPH_ADD_NODE_ORIGINAL is not None
+    _SESSION_GRAPH_ADD_NODE_ORIGINAL(session_graph, node)
+
+
+def _guarded_add_edge(session_graph: SessionGraph, edge: GraphEdge) -> None:
+    _raise_if_cycle_resolved(session_graph)
+    assert _SESSION_GRAPH_ADD_EDGE_ORIGINAL is not None
+    _SESSION_GRAPH_ADD_EDGE_ORIGINAL(session_graph, edge)
+
+
+def _guarded_get_edge(session_graph: SessionGraph, edge_id: str) -> GraphEdge | None:
+    assert _SESSION_GRAPH_GET_EDGE_ORIGINAL is not None
+    edge = _SESSION_GRAPH_GET_EDGE_ORIGINAL(session_graph, edge_id)
+    if edge is None:
+        return None
+
+    if not _is_runtime_orchestrated(session_graph) or not _is_cycle_resolved(
+        session_graph
+    ):
+        return edge
+
+    protected_reason = edge.protected_reason or ProtectionReason.SAFETY_GUARD
+    return edge.model_copy(
+        update={"locked": True, "protected_reason": protected_reason}
+    )
+
+
+def _guarded_remove_edge(session_graph: SessionGraph, edge_id: str) -> None:
+    _raise_if_cycle_resolved(session_graph)
+    assert _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL is not None
+    _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL(session_graph, edge_id)
+
+    if _is_runtime_orchestrated(session_graph):
+        session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = True
 
 
 class _RuntimeEventType(StrEnum):
@@ -135,61 +187,6 @@ def _install_session_graph_mutation_hooks() -> None:
     _SESSION_GRAPH_ADD_EDGE_ORIGINAL = SessionGraph.add_edge
     _SESSION_GRAPH_GET_EDGE_ORIGINAL = SessionGraph.get_edge
     _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL = SessionGraph.remove_edge
-
-    def _is_runtime_orchestrated(session_graph: SessionGraph) -> bool:
-        return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_ORCHESTRATED_KEY))
-
-    def _is_cycle_resolved(session_graph: SessionGraph) -> bool:
-        return bool(session_graph.graph.graph.get(_RUNTIME_MUTATION_RESOLVED_KEY))
-
-    def _guarded_add_node(session_graph: SessionGraph, node: GraphNode) -> None:
-        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
-            session_graph
-        ):
-            raise ValueError("mutation cycle already resolved")
-
-        assert _SESSION_GRAPH_ADD_NODE_ORIGINAL is not None
-        _SESSION_GRAPH_ADD_NODE_ORIGINAL(session_graph, node)
-
-    def _guarded_add_edge(session_graph: SessionGraph, edge: GraphEdge) -> None:
-        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
-            session_graph
-        ):
-            raise ValueError("mutation cycle already resolved")
-
-        assert _SESSION_GRAPH_ADD_EDGE_ORIGINAL is not None
-        _SESSION_GRAPH_ADD_EDGE_ORIGINAL(session_graph, edge)
-
-    def _guarded_get_edge(
-        session_graph: SessionGraph, edge_id: str
-    ) -> GraphEdge | None:
-        assert _SESSION_GRAPH_GET_EDGE_ORIGINAL is not None
-        edge = _SESSION_GRAPH_GET_EDGE_ORIGINAL(session_graph, edge_id)
-        if edge is None:
-            return None
-
-        if not _is_runtime_orchestrated(session_graph):
-            return edge
-
-        if not _is_cycle_resolved(session_graph):
-            return edge
-
-        protected_reason = edge.protected_reason or ProtectionReason.SAFETY_GUARD
-        return edge.model_copy(
-            update={"locked": True, "protected_reason": protected_reason}
-        )
-
-    def _guarded_remove_edge(session_graph: SessionGraph, edge_id: str) -> None:
-        if _is_runtime_orchestrated(session_graph) and _is_cycle_resolved(
-            session_graph
-        ):
-            raise ValueError("mutation cycle already resolved")
-
-        assert _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL is not None
-        _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL(session_graph, edge_id)
-
-        if _is_runtime_orchestrated(session_graph):
-            session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = True
 
     setattr(SessionGraph, "add_node", _guarded_add_node)
     setattr(SessionGraph, "add_edge", _guarded_add_edge)
