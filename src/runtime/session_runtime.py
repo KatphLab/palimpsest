@@ -527,10 +527,22 @@ class SessionRuntime:
         try:
             candidate_id = self._select_activation_candidate()
             if candidate_id is None:
+                self._append_runtime_event(
+                    event_type=MutationEventKind.VETOED,
+                    command_id="mutation-cycle-skip-no-candidate",
+                    session_id=self.session_id,
+                    message="mutation skipped: no activation candidate",
+                )
                 return None
 
             proposal = self._build_mutation_proposal(candidate_id)
             if proposal is None:
+                self._append_runtime_event(
+                    event_type=MutationEventKind.VETOED,
+                    command_id="mutation-cycle-skip-no-target",
+                    session_id=self.session_id,
+                    message="mutation skipped: no mutable targets",
+                )
                 return None
 
             self._append_mutation_lifecycle_event(
@@ -616,11 +628,18 @@ class SessionRuntime:
             return None
 
         mutable_edge_id = self._first_mutable_edge_id(activation_candidate_id)
-        if mutable_edge_id is None:
-            return None
-
         self._mutation_cycle_sequence += 1
         decision_id = f"mutation-cycle-{self._mutation_cycle_sequence:03d}"
+        if mutable_edge_id is None:
+            return MutationProposal(
+                decision_id=decision_id,
+                session_id=self.session_id,
+                actor_node_id=activation_candidate_id,
+                target_ids=[activation_candidate_id],
+                action_type=MutationActionType.ADD_NODE,
+                risk_score=0.4,
+            )
+
         return MutationProposal(
             decision_id=decision_id,
             session_id=self.session_id,

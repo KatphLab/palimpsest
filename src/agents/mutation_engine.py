@@ -10,7 +10,7 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import ConfigDict, Field
 
 from graph.session_graph import SessionGraph
-from models.common import StrictBaseModel, UTCDateTime
+from models.common import NodeKind, StrictBaseModel, UTCDateTime
 from models.session import Session
 
 __all__ = ["MutationEngine"]
@@ -105,6 +105,14 @@ class MutationEngine:
             if state.session_graph.graph.has_node(node_id)
         ]
         if active_candidates:
+            for node_id in active_candidates:
+                node_data = state.session_graph.graph.nodes[node_id]
+                graph_node = node_data.get("node")
+                if getattr(graph_node, "node_kind", None) is NodeKind.SEED:
+                    continue
+
+                return node_id
+
             return active_candidates[0]
 
         graph_node_ids = sorted(

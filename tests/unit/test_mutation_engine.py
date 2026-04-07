@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
-import importlib
+from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from langgraph.graph import START
 
+from agents.mutation_engine import MutationEngine
+from agents.scene_agent import SceneAgent
+from graph.session_graph import SessionGraph
+from models.common import SessionStatus
+from models.session import SceneGenerationProvider, Session
+
 _SCENE_AGENT_NODE_NAMES = {"create_seed_node", "generate_first_scene"}
+
+
+class DeterministicSceneGenerationProvider(SceneGenerationProvider):
+    """Deterministic scene generation for mutation-engine tests."""
+
+    def generate_first_scene(self, *, seed_text: str) -> str:
+        return f"FIRST SCENE :: {seed_text}"
 
 
 def _mutation_engine_module_path() -> Path:
@@ -16,7 +30,7 @@ def _mutation_engine_module_path() -> Path:
     return Path(__file__).resolve().parents[2] / "src" / "agents" / "mutation_engine.py"
 
 
-def _mutation_engine() -> object:
+def _mutation_engine() -> MutationEngine:
     """Import the mutation engine once its module exists."""
 
     module_path = _mutation_engine_module_path()
@@ -25,12 +39,7 @@ def _mutation_engine() -> object:
         "subgraph has not been implemented yet"
     )
 
-    module = importlib.import_module("agents.mutation_engine")
-    engine_cls = getattr(module, "MutationEngine", None)
-    assert engine_cls is not None, (
-        "MutationEngine is missing from agents.mutation_engine"
-    )
-    return engine_cls()
+    return MutationEngine()
 
 
 def _proposer_graph(engine: object) -> object:
@@ -111,3 +120,26 @@ def test_mutation_engine_proposer_subgraph_isolated_from_scene_generation() -> N
         "mutation proposer subgraph should not include scene-generation nodes, "
         f"found {_SCENE_AGENT_NODE_NAMES & node_names!r}"
     )
+
+
+def test_mutation_engine_prefers_scene_activation_candidate_when_available() -> None:
+    """The proposer should choose an active scene node before a seed node."""
+
+    session = Session(
+        session_id=uuid4(),
+        status=SessionStatus.CREATED,
+        seed_text="A bell tolls under black water.",
+        graph_version=0,
+        active_node_ids=[],
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    session_graph = SessionGraph()
+    scene_agent = SceneAgent(provider=DeterministicSceneGenerationProvider())
+    seed_node_id, scene_node_id = scene_agent.bootstrap_session(session, session_graph)
+
+    engine = _mutation_engine()
+    candidate_id = engine.select_activation_candidate(session, session_graph)
+
+    assert candidate_id == scene_node_id
+    assert candidate_id != seed_node_id
