@@ -33,6 +33,18 @@ class _RuntimeWithSessionStub:
         self.state_version = 2
 
 
+class _RuntimeContinueStub:
+    def __init__(self) -> None:
+        self.session_id = uuid4()
+        self.session = _build_created_session(seed_text="seed")
+        self.session.status = SessionStatus.RUNNING
+        self.advance_calls = 0
+
+    def advance_session_cycle(self) -> None:
+        self.advance_calls += 1
+        return None
+
+
 class _StaticPanelSpy:
     def __init__(self) -> None:
         self.contents: list[str] = []
@@ -61,21 +73,10 @@ def test_refresh_active_session_panel_updates_text_only() -> None:
     assert panel.contents == ["updated content"]
 
 
-def test_action_continue_session_runs_manual_cycle_and_refreshes_panel() -> None:
-    """Continue should trigger one manual cycle and one panel refresh."""
+def test_complete_continue_generation_refreshes_panel_and_resets_state() -> None:
+    """Completion handler should refresh panel and clear generating flag."""
 
     app_module = _app_module()
-
-    class _RuntimeContinueStub:
-        def __init__(self) -> None:
-            self.session_id = uuid4()
-            self.session = _build_created_session(seed_text="seed")
-            self.session.status = SessionStatus.RUNNING
-            self.advance_calls = 0
-
-        def advance_session_cycle(self) -> None:
-            self.advance_calls += 1
-            return None
 
     runtime = _RuntimeContinueStub()
     app = app_module.SessionApp(runtime=runtime)
@@ -86,10 +87,50 @@ def test_action_continue_session_runs_manual_cycle_and_refreshes_panel() -> None
 
     app._refresh_active_session_panel = _refresh_panel
 
+    app._is_generating_scene = True
+
+    app._complete_continue_generation(None)
+
+    assert refreshed["calls"] == 1
+    assert app._is_generating_scene is False
+
+
+def test_action_continue_session_sets_generating_state_and_starts_worker() -> None:
+    """Continue should mark generation active before starting worker."""
+
+    app_module = _app_module()
+    runtime = _RuntimeContinueStub()
+    app = app_module.SessionApp(runtime=runtime)
+    starts = {"count": 0}
+
+    def _start_worker() -> None:
+        starts["count"] += 1
+
+    app._start_continue_generation_worker = _start_worker
+
     app.action_continue_session()
 
-    assert runtime.advance_calls == 1
-    assert refreshed["calls"] == 1
+    assert app._is_generating_scene is True
+    assert starts["count"] == 1
+
+
+def test_action_continue_session_warns_when_generation_already_running() -> None:
+    """Continue should reject overlapping generation requests."""
+
+    app_module = _app_module()
+    runtime = _RuntimeContinueStub()
+    app = app_module.SessionApp(runtime=runtime)
+    app._is_generating_scene = True
+    notifications: list[tuple[str, str]] = []
+
+    def _notify(message: str, *, severity: str) -> None:
+        notifications.append((message, severity))
+
+    app.notify = _notify
+
+    app.action_continue_session()
+
+    assert notifications == [("Generation already in progress", "warning")]
 
 
 def test_on_mount_does_not_start_periodic_refresh() -> None:

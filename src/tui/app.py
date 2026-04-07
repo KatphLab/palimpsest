@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from textual import work
 from textual.app import App, ComposeResult
 from textual.containers import Container, ScrollableContainer
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Header, Static
 
 from models.commands import CommandResult
 from models.common import SessionStatus
@@ -15,6 +16,7 @@ from tui.screens import SeedEntryScreen, handle_pause_request, handle_resume_req
 from tui.story_projection import build_story_lines
 from tui.widgets import (
     SessionSwitcher,
+    ShortcutFooterBar,
     handle_fork_request,
     handle_lock_request,
     handle_unlock_request,
@@ -35,6 +37,10 @@ class SessionApp(App[None]):
     #active-session-scroll {
         height: 1fr;
     }
+
+    #shortcut-footer {
+        dock: bottom;
+    }
     """
 
     BINDINGS = [
@@ -48,6 +54,8 @@ class SessionApp(App[None]):
         super().__init__()
         self.runtime = runtime or SessionRuntime()
         self.session_switcher = SessionSwitcher(runtime=self.runtime)
+        self._is_generating_scene = False
+        self._footer_bar = ShortcutFooterBar(id="shortcut-footer")
 
     def compose(self) -> ComposeResult:
         """Render the application shell."""
@@ -56,7 +64,7 @@ class SessionApp(App[None]):
         with Container(id="active-session"):
             with ScrollableContainer(id="active-session-scroll"):
                 yield Static(self._render_session_panel(), id="active-session-panel")
-        yield Footer()
+        yield self._footer_bar
 
     def on_mount(self) -> None:
         """Initialize without automatic refresh polling."""
@@ -98,12 +106,39 @@ class SessionApp(App[None]):
             self.notify("No active session", severity="warning")
             return
 
+        if self._is_generating_scene:
+            self.notify("Generation already in progress", severity="warning")
+            return
+
         if self.runtime.session.status is not SessionStatus.RUNNING:
             self.notify("Session must be running", severity="warning")
             return
 
-        self.runtime.advance_session_cycle()
+        self._set_generating_scene(True)
+        self._start_continue_generation_worker()
+
+    def _set_generating_scene(self, is_generating: bool) -> None:
+        self._is_generating_scene = is_generating
+        self._footer_bar.set_generating(is_generating)
+
+    def _start_continue_generation_worker(self) -> None:
+        self._run_continue_generation()
+
+    @work(thread=True, exclusive=True)
+    def _run_continue_generation(self) -> None:
+        error_message: str | None = None
+        try:
+            self.runtime.advance_session_cycle()
+        except Exception as error:  # pragma: no cover - defensive runtime boundary
+            error_message = f"Generation failed: {error}"
+        finally:
+            self.call_from_thread(self._complete_continue_generation, error_message)
+
+    def _complete_continue_generation(self, error_message: str | None) -> None:
+        if error_message is not None:
+            self.notify(error_message, severity="error")
         self._refresh_active_session_panel()
+        self._set_generating_scene(False)
 
     def switch_session(self, session_id: UUID) -> None:
         """Switch the active runtime session through the wrapper."""
