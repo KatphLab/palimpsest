@@ -118,20 +118,20 @@
 
 ### Tests for Phase 4.5 (REQUIRED)
 
-- [ ] T060 [P] [US2] Write failing unit tests for narrative-context extraction (last two scenes + graph counters) in `tests/unit/test_narrative_context_builder.py`
-- [ ] T061 [P] [US2] Write failing unit tests for LLM mutation-action selection parsing and validation in `tests/unit/test_llm_mutation_proposer.py`
-- [ ] T062 [P] [US2] Write failing unit tests for LLM selection failure telemetry and backoff when output is invalid/unavailable in `tests/unit/test_llm_mutation_proposer.py`
-- [ ] T063 [P] [US2] Write failing integration test proving repeated continue actions can grow beyond two scenes in `tests/integration/test_llm_mutation_progression.py`
-- [ ] T064 [P] [US2] Write failing integration test for decision and failure-log emission to console and `app.log` in `tests/integration/test_mutation_decision_logging.py`
+- [x] T060 [P] [US2] Write failing unit tests for narrative-context extraction (last two scenes + graph counters) in `tests/unit/test_narrative_context_builder.py`
+- [x] T061 [P] [US2] Write failing unit tests for LLM mutation-action selection parsing and validation in `tests/unit/test_llm_mutation_proposer.py`
+- [x] T062 [P] [US2] Write failing unit tests for LLM selection failure telemetry and backoff when output is invalid/unavailable in `tests/unit/test_llm_mutation_proposer.py`
+- [x] T063 [P] [US2] Write failing integration test proving repeated continue actions can grow beyond two scenes in `tests/integration/test_llm_mutation_progression.py`
+- [x] T064 [P] [US2] Write failing integration test for decision and failure-log emission to console and `app.log` in `tests/integration/test_mutation_decision_logging.py`
 
 ### Implementation for Phase 4.5
 
-- [ ] T065 [P] [US2] Implement typed narrative context models in `src/models/narrative_context.py`
-- [ ] T066 [P] [US2] Implement narrative context builder from live graph/session state in `src/agents/narrative_context_builder.py`
-- [ ] T067 [P] [US2] Implement LLM selection failure handling and backoff gating in `src/runtime/session_runtime.py`
-- [ ] T068 [US2] Implement LLM mutation proposer with structured-output parsing and explicit failure routing in `src/agents/llm_mutation_proposer.py`
-- [ ] T069 [US2] Integrate LLM mutation proposer into runtime mutation-cycle orchestration in `src/runtime/session_runtime.py`
-- [ ] T070 [US2] Update logging configuration for mutation-decision telemetry in both console and rotating file handlers in `src/config/logging_config.py`
+- [x] T065 [P] [US2] Implement typed narrative context models in `src/models/narrative_context.py`
+- [x] T066 [P] [US2] Implement narrative context builder from live graph/session state in `src/agents/narrative_context_builder.py`
+- [x] T067 [P] [US2] Implement LLM selection failure handling and backoff gating in `src/runtime/session_runtime.py`
+- [x] T068 [US2] Implement LLM mutation proposer with structured-output parsing and explicit failure routing in `src/agents/llm_mutation_proposer.py`
+- [x] T069 [US2] Integrate LLM mutation proposer into runtime mutation-cycle orchestration in `src/runtime/session_runtime.py`
+- [x] T070 [US2] Update logging configuration for mutation-decision telemetry in both console and rotating file handlers in `src/config/logging_config.py`
 
 **Checkpoint**: LLM-driven mutation action selection is active with explicit failure telemetry and backoff, and decision telemetry is visible in both console and file logs.
 
