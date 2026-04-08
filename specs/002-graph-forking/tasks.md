@@ -35,24 +35,24 @@
 
 ### Base Entity Models (All Stories Depend On These)
 
-- [ ] T009 [P] Create ForkPoint entity in src/models/fork_point.py with validation per data-model.md
-- [ ] T010 [P] Create SeedConfiguration entity in src/models/seed_config.py with auto-generation logic per data-model.md
-- [ ] T011 [P] Create GraphLineage entity in src/models/graph_lineage.py with tree structure per data-model.md
-- [ ] T012 [P] Create GraphSummary entity in src/models/multi_graph_view.py (lightweight representation per data-model.md)
-- [ ] T013 Create GraphInstance entity in src/models/graph_instance.py (depends on T009, T010, references ForkPoint and SeedConfiguration)
+- [X] T009 [P] Create ForkPoint entity in src/models/fork_point.py with validation per data-model.md
+- [X] T010 [P] Create SeedConfiguration entity in src/models/seed_config.py with auto-generation logic per data-model.md
+- [X] T011 [P] Create GraphLineage entity in src/models/graph_lineage.py with tree structure per data-model.md
+- [X] T012 [P] Create GraphSummary entity in src/models/multi_graph_view.py (lightweight representation per data-model.md)
+- [X] T013 Create GraphInstance entity in src/models/graph_instance.py (depends on T009, T010, references ForkPoint and SeedConfiguration)
 
 ### Persistence Foundation
 
-- [ ] T014 [P] Create graph storage schema in src/persistence/graph_store.py with JSON serialization per data-model.md persistence mapping
-- [ ] T015 [P] Create lineage storage schema in src/persistence/lineage_store.py for fork ancestry per data-model.md
-- [ ] T016 Implement GraphStore class with save/load/delete operations in src/persistence/graph_store.py
-- [ ] T017 Implement LineageStore class with ancestry tracking in src/persistence/lineage_store.py
+- [X] T014 [P] Create graph storage schema in src/persistence/graph_store.py with JSON serialization per data-model.md persistence mapping
+- [X] T015 [P] Create lineage storage schema in src/persistence/lineage_store.py for fork ancestry per data-model.md
+- [X] T016 Implement GraphStore class with save/load/delete operations in src/persistence/graph_store.py
+- [X] T017 Implement LineageStore class with ancestry tracking in src/persistence/lineage_store.py
 
 ### Utility Infrastructure
 
-- [ ] T018 [P] Create coherence scorer utility in src/services/coherence_scorer.py per CA-001 (>0.7 threshold)
-- [ ] T019 [P] Create structured logging utility for operation tracking per SC-009
-- [ ] T020 Create UUID validation utilities for model validation per contract patterns
+- [X] T018 [P] Create coherence scorer utility in src/services/coherence_scorer.py per CA-001 (>0.7 threshold)
+- [X] T019 [P] Create structured logging utility for operation tracking per SC-009
+- [X] T020 Create UUID validation utilities for model validation per contract patterns
 
 **Checkpoint**: Foundation ready - GraphInstance, ForkPoint, SeedConfiguration, GraphLineage models exist with persistence. User story implementation can now begin in parallel.
 
