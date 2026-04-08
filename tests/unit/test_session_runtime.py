@@ -28,6 +28,7 @@ from tests.fixtures import (
     SequencedMutationProposalProvider,
     build_mutation_response,
 )
+from utils.time import utc_now
 
 
 def _build_runtime(
@@ -367,7 +368,7 @@ def test_runtime_emits_global_consistency_event_when_burst_pending() -> None:
     assert runtime.session is not None
     session_id = runtime.session_id
     assert session_id is not None
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     runtime._global_consistency_check_interval = timedelta(days=1)
     runtime._mutation_burst_trigger_count = 1
     runtime._mutation_burst_window = timedelta(minutes=5)

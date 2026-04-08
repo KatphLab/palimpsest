@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,6 +13,7 @@ from graph.session_graph import SessionGraph
 from models.common import SessionStatus
 from models.session import Session
 from tests.fixtures import DeterministicSceneGenerationProvider
+from utils.time import utc_now
 
 _SCENE_AGENT_NODE_NAMES = {"create_seed_node", "generate_first_scene"}
 
@@ -125,8 +125,8 @@ def test_mutation_engine_prefers_scene_activation_candidate_when_available() -> 
         seed_text="A bell tolls under black water.",
         graph_version=0,
         active_node_ids=[],
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
+        created_at=utc_now(),
+        updated_at=utc_now(),
     )
     session_graph = SessionGraph()
     scene_agent = SceneAgent(provider=DeterministicSceneGenerationProvider())

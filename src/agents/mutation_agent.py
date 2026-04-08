@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from datetime import datetime, timezone
 from typing import Iterable
 
 from graph.session_graph import SessionGraph
@@ -25,6 +24,7 @@ from models.common import (
 from models.graph import GraphEdge, GraphNode
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
+from utils.time import utc_now
 
 __all__ = ["MutationAgent"]
 
@@ -357,7 +357,7 @@ class MutationAgent:
             f"{anchor_node_id}-{decision.decision_id}-node",
         )
         generated_text = f"{anchor_text} :: {decision.decision_id}"
-        activated_at = datetime.now(timezone.utc)
+        activated_at = utc_now()
 
         session_graph.add_node(
             GraphNode(
@@ -428,7 +428,7 @@ class MutationAgent:
                 update={"text": rewritten_text}
             )
 
-        updated_at = datetime.now(timezone.utc)
+        updated_at = utc_now()
         session_graph.graph.nodes[node_id]["updated_at"] = updated_at
         session_graph.graph.nodes[node_id]["last_refreshed_at"] = updated_at
         session_graph.graph.nodes[node_id]["sampled_at"] = updated_at

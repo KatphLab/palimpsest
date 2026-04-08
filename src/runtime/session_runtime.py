@@ -7,7 +7,7 @@ import errno
 import logging
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from threading import Lock
@@ -68,6 +68,7 @@ from runtime.consistency import (
 )
 from runtime.event_log import EventLog
 from runtime.exporter import build_export_artifact, write_export_artifact
+from utils.time import utc_now
 
 __all__ = ["SessionRuntime"]
 
@@ -374,7 +375,7 @@ class SessionRuntime:
             if self.session is not None:
                 raise ValueError("a session is already active")
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             session_id = uuid4()
             self.session = Session(
                 session_id=session_id,
@@ -417,7 +418,7 @@ class SessionRuntime:
             assert self.session is not None
 
             self.session.status = SessionStatus.PAUSED
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             LOGGER.info("paused session %s", self.session_id)
             return self._build_result(command.command_id, "pause_session accepted")
 
@@ -442,7 +443,7 @@ class SessionRuntime:
                 )
 
             self.session.status = SessionStatus.RUNNING
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.state_version += 1
             LOGGER.info("resumed session %s", self.session_id)
             return self._build_result(command.command_id, "resume_session accepted")
@@ -464,7 +465,7 @@ class SessionRuntime:
             assert self.session is not None
 
             self.session_graph.lock_edge(command.payload.edge_id)
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.session.graph_version += 1
             self.state_version += 1
             self._append_runtime_event(
@@ -496,7 +497,7 @@ class SessionRuntime:
             assert self.session is not None
 
             self.session_graph.unlock_edge(command.payload.edge_id)
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.session.graph_version += 1
             self.state_version += 1
             self._append_runtime_event(
@@ -520,7 +521,7 @@ class SessionRuntime:
             assert self.session is not None
             assert self.session_id is not None
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             fork_session_id = uuid4()
             forked_session = self.session.model_copy(deep=True)
             forked_session.session_id = fork_session_id
@@ -643,7 +644,7 @@ class SessionRuntime:
             assert self.session is not None
             assert self.session_id is not None
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             session_snapshot = self.session.snapshot(captured_at=now)
             session_state = self._session_states.get(self.session_id)
             if session_state is None:
@@ -717,7 +718,7 @@ class SessionRuntime:
             self._scene_agent.refresh_visible_state(
                 self.session,
                 self.session_graph,
-                refreshed_at=datetime.now(timezone.utc),
+                refreshed_at=utc_now(),
             )
             return self._run_mutation_cycle_locked()
 
@@ -765,7 +766,7 @@ class SessionRuntime:
         if session_state is None:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         if (
             self.session.termination is not None
             and self.session.termination.termination_reached
@@ -870,7 +871,7 @@ class SessionRuntime:
         activation_candidate_id = self._mutation_engine.select_activation_candidate(
             self.session,
             self.session_graph,
-            activated_at=datetime.now(timezone.utc),
+            activated_at=utc_now(),
         )
         if activation_candidate_id is None:
             return None
@@ -1191,7 +1192,7 @@ class SessionRuntime:
             sequence=self._runtime_event_sequence,
             event_type=event_type,
             session_id=session_id,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=utc_now(),
             command_id=command_id,
             message=message,
             edge_id=edge_id,
@@ -1244,7 +1245,7 @@ class SessionRuntime:
         event_log = session_state.event_log
         event_id = f"{command_id}-{event_log.next_sequence:06d}"
         sequence = event_log.next_sequence
-        occurred_at = datetime.now(timezone.utc)
+        occurred_at = utc_now()
         event_targets = list(target_ids or [])
         if mutation_id is None and outcome is None:
             event_log.append(

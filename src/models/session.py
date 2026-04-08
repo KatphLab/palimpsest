@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -17,6 +16,7 @@ from models.common import (
     TerminationVoteState,
     UTCDateTime,
 )
+from utils.time import utc_now
 
 __all__ = ["Session", "SessionSnapshot", "SceneGenerationProvider"]
 
@@ -72,7 +72,7 @@ class Session(_SessionBase):
     def snapshot(self, *, captured_at: UTCDateTime | None = None) -> SessionSnapshot:
         """Create a frozen export-ready copy of the live session."""
 
-        exported_at = captured_at or datetime.now(timezone.utc)
+        exported_at = captured_at or utc_now()
         return SessionSnapshot.model_validate(
             {
                 **self.model_dump(mode="python"),
