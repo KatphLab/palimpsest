@@ -17,12 +17,12 @@ def _summary_payload() -> dict[str, object]:
     return {
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "Root graph",
-        "nodeCount": 4,
-        "edgeCount": 3,
-        "createdAt": datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc),
-        "forkSource": None,
-        "currentState": "active",
-        "lastModified": datetime(2026, 4, 8, 10, 1, tzinfo=timezone.utc),
+        "node_count": 4,
+        "edge_count": 3,
+        "created_at": datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc),
+        "fork_source": None,
+        "current_state": "active",
+        "last_modified": datetime(2026, 4, 8, 10, 1, tzinfo=timezone.utc),
         "labels": ["root", "p1"],
     }
 
@@ -31,11 +31,11 @@ def test_graph_summary_accepts_contract_payload_shape() -> None:
     """GraphSummary should accept contract field names and constraints."""
 
     summary = GraphSummary.model_validate(_summary_payload())
-    payload = summary.model_dump(by_alias=True)
+    payload = summary.model_dump()
 
-    assert payload["nodeCount"] == 4
-    assert payload["edgeCount"] == 3
-    assert payload["currentState"] == "active"
+    assert payload["node_count"] == 4
+    assert payload["edge_count"] == 3
+    assert payload["current_state"] == "active"
 
 
 def test_multi_graph_view_rejects_additional_properties() -> None:
@@ -59,14 +59,14 @@ def test_graph_switch_request_accepts_contract_aliases() -> None:
 
     request = GraphSwitchRequest.model_validate(
         {
-            "targetGraphId": "550e8400-e29b-41d4-a716-446655440001",
-            "preserveCurrent": False,
+            "target_graph_id": "550e8400-e29b-41d4-a716-446655440001",
+            "preserve_current": False,
         }
     )
 
-    payload = request.model_dump(by_alias=True)
-    assert payload["targetGraphId"] == "550e8400-e29b-41d4-a716-446655440001"
-    assert payload["preserveCurrent"] is False
+    payload = request.model_dump()
+    assert payload["target_graph_id"] == "550e8400-e29b-41d4-a716-446655440001"
+    assert payload["preserve_current"] is False
 
 
 def test_graph_switch_response_emits_contract_aliases() -> None:
@@ -79,8 +79,8 @@ def test_graph_switch_response_emits_contract_aliases() -> None:
         graph_summary=GraphSummary.model_validate(_summary_payload()),
     )
 
-    payload = response.model_dump(by_alias=True)
-    assert payload["previousGraphId"] == "550e8400-e29b-41d4-a716-446655440000"
-    assert payload["currentGraphId"] == "550e8400-e29b-41d4-a716-446655440001"
-    assert payload["loadTimeMs"] == 42.0
-    assert payload["graphSummary"]["name"] == "Root graph"
+    payload = response.model_dump()
+    assert payload["previous_graph_id"] == "550e8400-e29b-41d4-a716-446655440000"
+    assert payload["current_graph_id"] == "550e8400-e29b-41d4-a716-446655440001"
+    assert payload["load_time_ms"] == 42.0
+    assert payload["graph_summary"]["name"] == "Root graph"

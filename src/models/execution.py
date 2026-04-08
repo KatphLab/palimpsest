@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import StrEnum
 
-from pydantic import ConfigDict, Field, JsonValue, field_validator
+from pydantic import Field, JsonValue, field_validator
 
 from models.common import StrictBaseModel, UTCDateTime
 from utils.uuid_validation import ensure_valid_uuid
@@ -47,16 +47,14 @@ class ExecutionStatus(StrEnum):
 class ExecutionState(StrictBaseModel):
     """Current execution state for a graph instance."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    graph_id: str = Field(min_length=1, alias="graphId")
+    graph_id: str = Field(min_length=1)
     status: ExecutionStatus
-    current_node_id: str | None = Field(default=None, alias="currentNodeId")
-    completed_nodes: int = Field(default=0, ge=0, alias="completedNodes")
-    total_nodes: int = Field(ge=0, alias="totalNodes")
+    current_node_id: str | None = None
+    completed_nodes: int = Field(default=0, ge=0)
+    total_nodes: int = Field(ge=0)
     progress: float = Field(ge=0.0, le=1.0)
-    started_at: UTCDateTime | None = Field(default=None, alias="startedAt")
-    last_activity: UTCDateTime = Field(alias="lastActivity")
+    started_at: UTCDateTime | None = None
+    last_activity: UTCDateTime
 
     @field_validator("graph_id")
     @classmethod
@@ -67,17 +65,13 @@ class ExecutionState(StrictBaseModel):
 class ParallelExecutionState(StrictBaseModel):
     """State of all active graph executions."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
     executions: list[ExecutionState] = Field(max_length=50)
-    active_count: int = Field(ge=0, alias="activeCount")
-    max_parallel: int = Field(default=10, ge=1, le=50, alias="maxParallel")
+    active_count: int = Field(ge=0)
+    max_parallel: int = Field(default=10, ge=1, le=50)
 
 
 class IsolationViolation(StrictBaseModel):
     """Report of an execution isolation breach between two graphs."""
-
-    model_config = ConfigDict(extra="forbid")
 
     violation_type: str = Field(min_length=1)
     source_graph_id: str = Field(min_length=1)
@@ -93,8 +87,6 @@ class IsolationViolation(StrictBaseModel):
 
 class ConflictInfo(StrictBaseModel):
     """Details about a detected optimistic-locking conflict."""
-
-    model_config = ConfigDict(extra="forbid")
 
     graph_id: str = Field(min_length=1)
     last_local_modified: UTCDateTime
@@ -117,8 +109,6 @@ class ConflictResolution(StrEnum):
 
 class ConflictSnapshot(StrictBaseModel):
     """Typed state snapshot used during conflict detection and resolution."""
-
-    model_config = ConfigDict(extra="forbid")
 
     last_modified: UTCDateTime
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
@@ -154,16 +144,12 @@ class ConflictHandler(ABC):
 class ExecutionStepResult(StrictBaseModel):
     """Result details emitted after one graph execution step."""
 
-    model_config = ConfigDict(extra="forbid")
-
     executed_node_id: str | None = None
     completed: bool
 
 
 class ResourceUsage(StrictBaseModel):
     """Current resource usage and warning state for parallel execution."""
-
-    model_config = ConfigDict(extra="forbid")
 
     active_graphs: int = Field(ge=0)
     total_memory_mb: float = Field(ge=0.0)

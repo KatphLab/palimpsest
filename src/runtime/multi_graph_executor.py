@@ -60,7 +60,7 @@ class LastWriteWinsConflictHandler(ConflictHandler):
         if remote_state.last_modified <= local_state.last_modified:
             return None
 
-        fields: list[str] = ["lastModified"]
+        fields: list[str] = ["last_modified"]
         if local_state.metadata != remote_state.metadata:
             fields.append("metadata")
 

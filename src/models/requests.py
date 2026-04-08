@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 from models.common import StrictBaseModel
@@ -39,12 +39,10 @@ _ForkLabel = Annotated[
 class GraphForkRequest(StrictBaseModel):
     """Request payload to fork a source graph at a specific edge."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    source_graph_id: str = Field(min_length=1, alias="sourceGraphId")
-    fork_edge_id: _ForkEdgeId = Field(alias="forkEdgeId")
-    custom_seed: _SeedText | None = Field(default=None, alias="customSeed")
-    label: _ForkLabel | None = Field(default=None, alias="label")
+    source_graph_id: str = Field(min_length=1)
+    fork_edge_id: _ForkEdgeId
+    custom_seed: _SeedText | None = None
+    label: _ForkLabel | None = None
 
     @field_validator("source_graph_id")
     @classmethod
@@ -69,10 +67,8 @@ class GraphForkRequest(StrictBaseModel):
 class GraphSwitchRequest(StrictBaseModel):
     """Request payload to activate a graph in the multi-graph view."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    target_graph_id: str = Field(min_length=1, alias="targetGraphId")
-    preserve_current: bool = Field(default=True, alias="preserveCurrent")
+    target_graph_id: str = Field(min_length=1)
+    preserve_current: bool = True
 
     @field_validator("target_graph_id")
     @classmethod

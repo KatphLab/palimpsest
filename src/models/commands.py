@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import ConfigDict, Field, StringConstraints
+from pydantic import Field, StringConstraints
 
 from models.common import StrictBaseModel
 
@@ -105,16 +105,12 @@ class ExportSessionPayload(StrictBaseModel):
 class StartSessionCommand(CommandEnvelopeBase):
     """Envelope for the start-session command."""
 
-    model_config = ConfigDict(extra="forbid")
-
     command_type: Literal[CommandType.START_SESSION]
     payload: StartSessionPayload
 
 
 class PauseSessionCommand(CommandEnvelopeBase):
     """Envelope for the pause-session command."""
-
-    model_config = ConfigDict(extra="forbid")
 
     command_type: Literal[CommandType.PAUSE_SESSION]
     payload: EmptyPayload
@@ -123,16 +119,12 @@ class PauseSessionCommand(CommandEnvelopeBase):
 class ResumeSessionCommand(CommandEnvelopeBase):
     """Envelope for the resume-session command."""
 
-    model_config = ConfigDict(extra="forbid")
-
     command_type: Literal[CommandType.RESUME_SESSION]
     payload: EmptyPayload
 
 
 class LockEdgeCommand(CommandEnvelopeBase):
     """Envelope for the lock-edge command."""
-
-    model_config = ConfigDict(extra="forbid")
 
     command_type: Literal[CommandType.LOCK_EDGE]
     payload: LockEdgePayload
@@ -141,16 +133,12 @@ class LockEdgeCommand(CommandEnvelopeBase):
 class UnlockEdgeCommand(CommandEnvelopeBase):
     """Envelope for the unlock-edge command."""
 
-    model_config = ConfigDict(extra="forbid")
-
     command_type: Literal[CommandType.UNLOCK_EDGE]
     payload: UnlockEdgePayload
 
 
 class ForkSessionCommand(CommandEnvelopeBase):
     """Envelope for the fork-session command."""
-
-    model_config = ConfigDict(extra="forbid")
 
     command_type: Literal[CommandType.FORK_SESSION]
     payload: ForkSessionPayload
@@ -159,8 +147,6 @@ class ForkSessionCommand(CommandEnvelopeBase):
 class InspectNodeCommand(CommandEnvelopeBase):
     """Envelope for the inspect-node command."""
 
-    model_config = ConfigDict(extra="forbid")
-
     command_type: Literal[CommandType.INSPECT_NODE]
     payload: InspectNodePayload
 
@@ -168,16 +154,12 @@ class InspectNodeCommand(CommandEnvelopeBase):
 class ExportSessionCommand(CommandEnvelopeBase):
     """Envelope for the export-session command."""
 
-    model_config = ConfigDict(extra="forbid")
-
     command_type: Literal[CommandType.EXPORT_SESSION]
     payload: ExportSessionPayload
 
 
 class QuitCommand(CommandEnvelopeBase):
     """Envelope for the quit command."""
-
-    model_config = ConfigDict(extra="forbid")
 
     command_type: Literal[CommandType.QUIT]
     payload: EmptyPayload

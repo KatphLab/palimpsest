@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import ConfigDict, Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 from models.common import StrictBaseModel, UTCDateTime
@@ -27,17 +27,13 @@ GraphStatusFilter = Literal["active", "archived"]
 class ViewPreferences(StrictBaseModel):
     """User preferences for sorting and rendering multi-graph results."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    sort_by: ViewSortField = Field(default="created_at", alias="sortBy")
-    sort_order: ViewSortOrder = Field(default="desc", alias="sortOrder")
-    display_mode: ViewDisplayMode = Field(default="list", alias="displayMode")
+    sort_by: ViewSortField = "created_at"
+    sort_order: ViewSortOrder = "desc"
+    display_mode: ViewDisplayMode = "list"
 
 
 class FilterState(StrictBaseModel):
     """Active filter criteria for querying graph summaries."""
-
-    model_config = ConfigDict(extra="forbid")
 
     search_query: _SearchQuery | None = None
     fork_source: str | None = None
@@ -56,8 +52,6 @@ class FilterState(StrictBaseModel):
 
 class MultiGraphView(StrictBaseModel):
     """Complete state payload for the multi-graph browser view."""
-
-    model_config = ConfigDict(extra="forbid")
 
     graphs: list[GraphSummary] = Field(max_length=1000)
     active_graph_id: str | None = None
