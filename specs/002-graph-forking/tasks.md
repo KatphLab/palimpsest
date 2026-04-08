@@ -198,32 +198,32 @@
 
 ### Documentation & Validation
 
-- [ ] T083 [P] Update quickstart.md with actual CLI commands and verified examples
-- [ ] T084 [P] Add docstrings to all public modules, classes, functions per AGENTS.md code style
-- [ ] T085 [P] Verify type hints on all function signatures per AGENTS.md
+- [X] T083 [P] Update quickstart.md with actual CLI commands and verified examples
+- [X] T084 [P] Add docstrings to all public modules, classes, functions per AGENTS.md code style
+- [X] T085 [P] Verify type hints on all function signatures per AGENTS.md
 
 ### Testing & Quality
 
-- [ ] T086 [P] Add additional unit tests for edge cases (max graph limit, fork of fork, circular references) per spec.md edge cases
-- [ ] T087 Verify fork creation <500ms performance per CA-005
-- [ ] T088 Verify graph switch <300ms for 1000 nodes per CA-005
-- [ ] T089 Verify multi-graph view <200ms for 50 graphs per CA-005
-- [ ] T090 [P] Add unit tests for GraphLineage tree operations (depth calculation, branch ID)
+- [X] T086 [P] Add additional unit tests for edge cases (max graph limit, fork of fork, circular references) per spec.md edge cases
+- [X] T087 Verify fork creation <500ms performance per CA-005
+- [X] T088 Verify graph switch <300ms for 1000 nodes per CA-005
+- [X] T089 Verify multi-graph view <200ms for 50 graphs per CA-005
+- [X] T090 [P] Add unit tests for GraphLineage tree operations (depth calculation, branch ID)
 
 ### Performance & Hardening
 
-- [ ] T091 Add coherence validation on all narrative transitions (>0.7 threshold) per CA-001
-- [ ] T092 Implement circular reference detection per edge case: Circular references
-- [ ] T093 Implement graph limit enforcement (max 50 graphs) with graceful handling per edge case: Maximum graph limit
-- [ ] T094 Add structured logging verification for all fork/create/switch/delete operations per SC-009
-- [ ] T095 Verify optimistic locking implementation per research.md Decision 6
+- [X] T091 Add coherence validation on all narrative transitions (>0.7 threshold) per CA-001
+- [X] T092 Implement circular reference detection per edge case: Circular references
+- [X] T093 Implement graph limit enforcement (max 50 graphs) with graceful handling per edge case: Maximum graph limit
+- [X] T094 Add structured logging verification for all fork/create/switch/delete operations per SC-009
+- [X] T095 Verify optimistic locking implementation per research.md Decision 6
 
 ### Integration Verification
 
-- [ ] T096 Run quickstart.md validation - all examples work as documented
-- [ ] T097 Run full integration test suite: `uv run pytest tests/integration/`
-- [ ] T098 Run contract test suite: `uv run pytest tests/contract/`
-- [ ] T099 Verify ≥80% test coverage on new code per AGENTS.md
+- [X] T096 Run quickstart.md validation - all examples work as documented
+- [X] T097 Run full integration test suite: `uv run pytest tests/integration/`
+- [X] T098 Run contract test suite: `uv run pytest tests/contract/`
+- [X] T099 Verify ≥80% test coverage on new code per AGENTS.md
 
 **Checkpoint**: Feature complete, all tests passing, performance budgets met, documentation accurate.
 

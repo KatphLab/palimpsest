@@ -8,8 +8,10 @@ from pathlib import Path
 from uuid import uuid4
 
 import networkx as nx
+from pydantic import JsonValue
 
 from models.errors import ForkErrorCode, GraphForkError
+from models.execution import RESOURCE_LIMITS
 from models.fork_point import ForkPoint
 from models.graph_instance import GraphInstance, GraphLifecycleState
 from models.graph_lineage import GraphLineage
@@ -22,6 +24,7 @@ from models.responses import EdgeReference, GraphForkResponse
 from models.seed_config import SeedConfiguration
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
+from services.coherence_scorer import COHERENCE_THRESHOLD, CoherenceScorer
 from services.structured_logging import OperationLogEntry, log_operation
 from utils.time import utc_now
 
@@ -87,6 +90,54 @@ class GraphForker:
                     details={
                         "source_graph_id": request.source_graph_id,
                         "fork_edge_id": request.fork_edge_id,
+                    },
+                ),
+            )
+
+        graph_limit = RESOURCE_LIMITS["max_supported_graphs"]
+        if len(self._graph_store.list_graphs()) >= graph_limit:
+            return (
+                False,
+                GraphForkError(
+                    error=ForkErrorCode.GRAPH_LIMIT_EXCEEDED,
+                    message=(
+                        f"maximum graph limit reached ({graph_limit}); "
+                        "archive or delete a graph before forking"
+                    ),
+                    details={"graph_limit": graph_limit},
+                ),
+            )
+
+        if _edge_participates_in_cycle(source_graph.graph_data, edge_reference):
+            return (
+                False,
+                GraphForkError(
+                    error=ForkErrorCode.FORK_CYCLE_DETECTED,
+                    message=(
+                        "fork edge introduces a circular reference; "
+                        "choose a non-cyclic transition"
+                    ),
+                    details={
+                        "fork_edge_id": request.fork_edge_id,
+                        "source_graph_id": request.source_graph_id,
+                    },
+                ),
+            )
+
+        coherence_error = _validate_transition_coherence(
+            source_graph.graph_data,
+            edge_reference,
+        )
+        if coherence_error is not None:
+            return (
+                False,
+                GraphForkError(
+                    error=ForkErrorCode.COHERENCE_VIOLATION,
+                    message=coherence_error,
+                    details={
+                        "fork_edge_id": request.fork_edge_id,
+                        "source_graph_id": request.source_graph_id,
+                        "coherence_threshold": COHERENCE_THRESHOLD,
                     },
                 ),
             )
@@ -177,7 +228,22 @@ class GraphForker:
             last_modified=created_at,
             state=GraphLifecycleState.ACTIVE,
         )
+        create_started_at = utc_now()
         self._graph_store.save(forked_graph)
+        log_operation(
+            self._logger,
+            OperationLogEntry(
+                operation="create",
+                status="success",
+                graph_id=forked_graph.id,
+                started_at=create_started_at,
+                completed_at=utc_now(),
+                metadata={
+                    "parent_graph_id": source_graph.id,
+                    "fork_edge_id": request.fork_edge_id,
+                },
+            ),
+        )
 
         lineage = _build_lineage(
             lineage_store=self._lineage_store,
@@ -306,3 +372,75 @@ def _validate_custom_seed(custom_seed: str | None) -> GraphForkError | None:
         )
 
     return None
+
+
+def _edge_participates_in_cycle(
+    graph: nx.DiGraph,  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    edge_reference: EdgeReference,
+) -> bool:
+    """Return ``True`` when an edge is part of a directed cycle."""
+
+    return nx.has_path(
+        graph,
+        edge_reference.target_node_id,
+        edge_reference.source_node_id,
+    )
+
+
+def _validate_transition_coherence(
+    graph: nx.DiGraph,  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    edge_reference: EdgeReference,
+) -> str | None:
+    """Validate coherence threshold for the selected narrative transition."""
+
+    edge_data = graph.get_edge_data(
+        edge_reference.source_node_id,
+        edge_reference.target_node_id,
+        default={},
+    )
+    if not isinstance(edge_data, dict):
+        return "fork edge metadata is unavailable for coherence validation"
+
+    normalized_edge_data: dict[str, JsonValue] = {
+        str(key): value for key, value in edge_data.items()
+    }
+    coherence_scorer = CoherenceScorer()
+    coherence_score = _resolve_transition_coherence_score(
+        coherence_scorer=coherence_scorer,
+        edge_data=normalized_edge_data,
+    )
+    if coherence_score is None:
+        return (
+            "fork edge is missing coherence metadata; provide coherence_score "
+            "or thematic_continuity/logical_continuity"
+        )
+
+    if not coherence_scorer.is_coherent(coherence_score):
+        return (
+            f"coherence score must be greater than {COHERENCE_THRESHOLD}; "
+            f"received {coherence_score:.3f}"
+        )
+
+    return None
+
+
+def _resolve_transition_coherence_score(
+    *,
+    coherence_scorer: CoherenceScorer,
+    edge_data: dict[str, JsonValue],
+) -> float | None:
+    """Resolve transition coherence from explicit score or component metrics."""
+
+    explicit_score = edge_data.get("coherence_score")
+    if isinstance(explicit_score, float | int):
+        return float(explicit_score)
+
+    thematic = edge_data.get("thematic_continuity")
+    logical = edge_data.get("logical_continuity")
+    if not isinstance(thematic, float | int) or not isinstance(logical, float | int):
+        return None
+
+    return coherence_scorer.score_transition(
+        thematic_continuity=float(thematic),
+        logical_continuity=float(logical),
+    )

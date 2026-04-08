@@ -21,8 +21,20 @@ def _build_source_graph(graph_id: str) -> GraphInstance:
     graph.add_node("n1")
     graph.add_node("n2")
     graph.add_node("n3")
-    graph.add_edge("n1", "n2", edge_id="edge_1", history_label="locked")
-    graph.add_edge("n2", "n3", edge_id="edge_2", history_label="future")
+    graph.add_edge(
+        "n1",
+        "n2",
+        edge_id="edge_1",
+        history_label="locked",
+        coherence_score=0.9,
+    )
+    graph.add_edge(
+        "n2",
+        "n3",
+        edge_id="edge_2",
+        history_label="future",
+        coherence_score=0.9,
+    )
 
     return GraphInstance(
         id=graph_id,
