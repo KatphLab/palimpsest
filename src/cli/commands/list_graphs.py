@@ -83,11 +83,11 @@ def run_list_graphs_command(
 ) -> MultiGraphView:
     """Run graph-list operation and return the rendered view model."""
 
-    operation_manager = (
-        manager
-        if manager is not None
-        else GraphManager(root_dir=root_dir if root_dir is not None else Path.cwd())
-    )
+    if manager is not None:
+        operation_manager = manager
+    else:
+        resolved_root = root_dir if root_dir is not None else Path.cwd()
+        operation_manager = GraphManager(root_dir=resolved_root)
     return asyncio.run(
         operation_manager.get_multi_graph_view(
             filters=filters,

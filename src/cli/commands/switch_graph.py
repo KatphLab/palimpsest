@@ -63,11 +63,11 @@ def run_switch_graph_command(
 ) -> GraphSwitchResponse:
     """Run graph switching and return a typed response payload."""
 
-    operation_switcher = (
-        switcher
-        if switcher is not None
-        else GraphSwitcher(root_dir=root_dir if root_dir is not None else Path.cwd())
-    )
+    if switcher is not None:
+        operation_switcher = switcher
+    else:
+        resolved_root = root_dir if root_dir is not None else Path.cwd()
+        operation_switcher = GraphSwitcher(root_dir=resolved_root)
     request = GraphSwitchRequest(
         target_graph_id=target_graph_id,
         preserve_current=preserve_current,

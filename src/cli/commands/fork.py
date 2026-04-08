@@ -72,11 +72,11 @@ def run_fork_command(
 ) -> GraphForkResponse:
     """Run the graph fork flow and emit a three-step progress indicator."""
 
-    operation_forker = (
-        forker
-        if forker is not None
-        else GraphForker(root_dir=root_dir if root_dir is not None else Path.cwd())
-    )
+    if forker is not None:
+        operation_forker = forker
+    else:
+        resolved_root = root_dir if root_dir is not None else Path.cwd()
+        operation_forker = GraphForker(root_dir=resolved_root)
     request = GraphForkRequest(
         source_graph_id=source_graph_id,
         fork_edge_id=fork_edge_id,
