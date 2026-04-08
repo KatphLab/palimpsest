@@ -11,8 +11,8 @@ def render_multi_graph_view(view: MultiGraphView) -> str:
     """Render a compact text table for the current multi-graph state."""
 
     header = [
-        "Graph ID  Name                  Nodes  Edges  State      Modified",
-        "--------  --------------------  -----  -----  ---------  -------------------------",
+        "Graph ID  Name                  Nodes  Edges  Seed         State      Modified",
+        "--------  --------------------  -----  -----  -----------  ---------  -------------------------",
     ]
     rows = [
         (
@@ -20,6 +20,7 @@ def render_multi_graph_view(view: MultiGraphView) -> str:
             f"{summary.name[:20]:<20}  "
             f"{summary.node_count:>5}  "
             f"{summary.edge_count:>5}  "
+            f"{(summary.seed or '-'):11.11}  "
             f"{summary.current_state[:9]:<9}  "
             f"{summary.last_modified.isoformat().replace('+00:00', 'Z')}"
         )

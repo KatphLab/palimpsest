@@ -8,7 +8,15 @@ from typing_extensions import Annotated
 from models.common import StrictBaseModel
 from utils.uuid_validation import ensure_valid_uuid
 
-__all__ = ["GraphForkRequest", "GraphSwitchRequest"]
+__all__ = [
+    "CUSTOM_SEED_MAX_LENGTH",
+    "CUSTOM_SEED_MIN_LENGTH",
+    "GraphForkRequest",
+    "GraphSwitchRequest",
+]
+
+CUSTOM_SEED_MIN_LENGTH = 1
+CUSTOM_SEED_MAX_LENGTH = 255
 
 _ForkEdgeId = Annotated[
     str,
@@ -16,7 +24,11 @@ _ForkEdgeId = Annotated[
 ]
 _SeedText = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=CUSTOM_SEED_MIN_LENGTH,
+        max_length=CUSTOM_SEED_MAX_LENGTH,
+    ),
 ]
 _ForkLabel = Annotated[
     str,
@@ -38,6 +50,20 @@ class GraphForkRequest(StrictBaseModel):
     @classmethod
     def _validate_source_graph_id(cls, value: str) -> str:
         return ensure_valid_uuid(value, field_name="source_graph_id")
+
+    @field_validator("custom_seed")
+    @classmethod
+    def _validate_custom_seed_boundaries(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        if len(value) < CUSTOM_SEED_MIN_LENGTH or len(value) > CUSTOM_SEED_MAX_LENGTH:
+            raise ValueError(
+                "custom_seed must be between "
+                f"{CUSTOM_SEED_MIN_LENGTH} and {CUSTOM_SEED_MAX_LENGTH} characters"
+            )
+
+        return value
 
 
 class GraphSwitchRequest(StrictBaseModel):

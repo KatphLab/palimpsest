@@ -173,20 +173,20 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T072 [P] [US4] Unit test for custom seed produces deterministic output in tests/unit/services/test_graph_forker.py per CA-004
-- [ ] T073 [P] [US4] Unit test for auto-generated seed when no custom seed provided per FR-006
-- [ ] T074 [US4] Integration test for deterministic reproduction with same seed in tests/integration/test_deterministic_seeds.py per SC-006
-- [ ] T075 [US4] Integration test for seed scoping (same seed in different graphs produces independent sequences) per edge case: Seed collision
+- [X] T072 [P] [US4] Unit test for custom seed produces deterministic output in tests/unit/services/test_graph_forker.py per CA-004
+- [X] T073 [P] [US4] Unit test for auto-generated seed when no custom seed provided per FR-006
+- [X] T074 [US4] Integration test for deterministic reproduction with same seed in tests/integration/test_deterministic_seeds.py per SC-006
+- [X] T075 [US4] Integration test for seed scoping (same seed in different graphs produces independent sequences) per edge case: Seed collision
 
 ### Implementation for User Story 4
 
-- [ ] T076 [US4] Enhance GraphForkRequest validation for customSeed field per contracts/graph-forking.md (min/max length)
-- [ ] T077 [US4] Implement string-based seed with hash-derived numeric state per research.md Decision 2
-- [ ] T078 [US4] Implement auto-generation of unique random seed (16 chars alphanumeric) when no custom seed per data-model.md auto-generation section
-- [ ] T079 [US4] Integrate seed configuration into GraphForker.fork_graph() flow per quickstart.md basic usage examples
-- [ ] T080 [US4] Implement seed validation in GraphForker.validate_fork_request() per contracts/graph-forking.md error codes
-- [ ] T081 [US4] Update CLI fork command to accept --seed option per quickstart.md CLI commands section
-- [ ] T082 [US4] Add seed display in multi-graph view (show seed in graph metadata) per FR-007
+- [X] T076 [US4] Enhance GraphForkRequest validation for customSeed field per contracts/graph-forking.md (min/max length)
+- [X] T077 [US4] Implement string-based seed with hash-derived numeric state per research.md Decision 2
+- [X] T078 [US4] Implement auto-generation of unique random seed (16 chars alphanumeric) when no custom seed per data-model.md auto-generation section
+- [X] T079 [US4] Integrate seed configuration into GraphForker.fork_graph() flow per quickstart.md basic usage examples
+- [X] T080 [US4] Implement seed validation in GraphForker.validate_fork_request() per contracts/graph-forking.md error codes
+- [X] T081 [US4] Update CLI fork command to accept --seed option per quickstart.md CLI commands section
+- [X] T082 [US4] Add seed display in multi-graph view (show seed in graph metadata) per FR-007
 
 **Checkpoint**: All user stories should now be independently functional. Custom seeds work deterministically, auto-generation works, seed scoping prevents collisions.
 

@@ -16,7 +16,7 @@ def test_seed_configuration_generate_keeps_user_seed() -> None:
     seed_config = SeedConfiguration.generate(seed="narrative_variant_a")
 
     assert seed_config.seed == "narrative_variant_a"
-    assert seed_config.algorithm is SeedAlgorithm.PYTHON_HASH
+    assert seed_config.algorithm is SeedAlgorithm.SHA256
     assert seed_config.deterministic is True
 
 

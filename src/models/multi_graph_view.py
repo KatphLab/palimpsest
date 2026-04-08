@@ -18,6 +18,10 @@ _CurrentState = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
 ]
+_SeedText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
 
 
 class GraphSummary(StrictBaseModel):
@@ -33,6 +37,7 @@ class GraphSummary(StrictBaseModel):
     fork_source: str | None = Field(default=None, alias="forkSource")
     current_state: _CurrentState = Field(alias="currentState")
     last_modified: UTCDateTime = Field(alias="lastModified")
+    seed: _SeedText | None = None
     labels: list[str] = Field(default_factory=list)
 
     @field_validator("id")

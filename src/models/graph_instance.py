@@ -74,5 +74,6 @@ class GraphInstance(StrictBaseModel):
             fork_source=self.fork_point.source_graph_id if self.fork_point else None,
             current_state=self.state.value,
             last_modified=self.last_modified,
+            seed=self.seed_config.seed,
             labels=[],
         )

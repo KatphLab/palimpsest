@@ -13,7 +13,11 @@ from models.errors import ForkErrorCode, GraphForkError
 from models.fork_point import ForkPoint
 from models.graph_instance import GraphInstance, GraphLifecycleState
 from models.graph_lineage import GraphLineage
-from models.requests import GraphForkRequest
+from models.requests import (
+    CUSTOM_SEED_MAX_LENGTH,
+    CUSTOM_SEED_MIN_LENGTH,
+    GraphForkRequest,
+)
 from models.responses import EdgeReference, GraphForkResponse
 from models.seed_config import SeedConfiguration
 from persistence.graph_store import GraphStore
@@ -53,6 +57,10 @@ class GraphForker:
         request: GraphForkRequest,
     ) -> tuple[bool, GraphForkError | None]:
         """Validate that source graph and fork edge exist before forking."""
+
+        seed_error = _validate_custom_seed(request.custom_seed)
+        if seed_error is not None:
+            return False, seed_error
 
         try:
             source_graph = self._graph_store.load(request.source_graph_id)
@@ -134,7 +142,22 @@ class GraphForker:
         )
         forked_graph_id = str(uuid4())
         created_at = utc_now()
-        seed_config = SeedConfiguration.generate(seed=request.custom_seed)
+        normalized_custom_seed = _normalize_custom_seed(request.custom_seed)
+        seed_config = SeedConfiguration.generate(seed=normalized_custom_seed)
+        seed_scope = _build_seed_scope(
+            source_graph_id=request.source_graph_id,
+            fork_edge_id=request.fork_edge_id,
+        )
+        fork_metadata = copy.deepcopy(source_graph.metadata)
+        fork_metadata.update(
+            {
+                "seed_numeric_state": seed_config.numeric_state(),
+                "seed_scope": seed_scope,
+                "seed_scoped_numeric_state": seed_config.scoped_numeric_state(
+                    scope=seed_scope
+                ),
+            }
+        )
         fork_point = ForkPoint(
             source_graph_id=request.source_graph_id,
             fork_edge_id=request.fork_edge_id,
@@ -150,7 +173,7 @@ class GraphForker:
             fork_point=fork_point,
             seed_config=seed_config,
             graph_data=copied_graph,
-            metadata=copy.deepcopy(source_graph.metadata),
+            metadata=fork_metadata,
             last_modified=created_at,
             state=GraphLifecycleState.ACTIVE,
         )
@@ -236,3 +259,50 @@ def _build_lineage(
         depth=depth,
         branch_id=f"{parent_graph_id[:8]}-{child_graph_id[:8]}-d{depth}",
     )
+
+
+def _normalize_custom_seed(custom_seed: str | None) -> str | None:
+    """Normalize optional custom seed input for deterministic handling."""
+
+    if custom_seed is None:
+        return None
+
+    return custom_seed.strip()
+
+
+def _build_seed_scope(*, source_graph_id: str, fork_edge_id: str) -> str:
+    """Build a deterministic scope key for per-fork seed state."""
+
+    return f"{source_graph_id}:{fork_edge_id}"
+
+
+def _validate_custom_seed(custom_seed: str | None) -> GraphForkError | None:
+    """Validate optional custom seed using contract min/max boundaries."""
+
+    if custom_seed is None:
+        return None
+
+    if not isinstance(custom_seed, str):
+        return GraphForkError(
+            error=ForkErrorCode.INVALID_SEED,
+            message="custom seed must be a string",
+            details={"custom_seed": str(custom_seed)},
+        )
+
+    normalized_seed = custom_seed.strip()
+    seed_length = len(normalized_seed)
+    if seed_length < CUSTOM_SEED_MIN_LENGTH or seed_length > CUSTOM_SEED_MAX_LENGTH:
+        return GraphForkError(
+            error=ForkErrorCode.INVALID_SEED,
+            message=(
+                "custom seed length must be between "
+                f"{CUSTOM_SEED_MIN_LENGTH} and {CUSTOM_SEED_MAX_LENGTH}"
+            ),
+            details={
+                "seed_length": seed_length,
+                "min_length": CUSTOM_SEED_MIN_LENGTH,
+                "max_length": CUSTOM_SEED_MAX_LENGTH,
+            },
+        )
+
+    return None
