@@ -68,24 +68,24 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T021 [P] [US1] Contract test for GraphForkRequest/GraphForkResponse in tests/contract/test_graph_forking.py per contracts/graph-forking.md
-- [ ] T022 [P] [US1] Unit test for ForkPoint validation in tests/unit/models/test_fork_point.py per data-model.md validation rules
-- [ ] T023 [P] [US1] Unit test for SeedConfiguration auto-generation in tests/unit/models/test_seed_config.py
-- [ ] T024 [US1] Integration test for fork isolation (verify parent and fork are independent) in tests/integration/test_fork_isolation.py
-- [ ] T025 [US1] Integration test for fork immutability (history frozen) in tests/integration/test_fork_isolation.py per CA-002
+- [X] T021 [P] [US1] Contract test for GraphForkRequest/GraphForkResponse in tests/contract/test_graph_forking.py per contracts/graph-forking.md
+- [X] T022 [P] [US1] Unit test for ForkPoint validation in tests/unit/models/test_fork_point.py per data-model.md validation rules
+- [X] T023 [P] [US1] Unit test for SeedConfiguration auto-generation in tests/unit/models/test_seed_config.py
+- [X] T024 [US1] Integration test for fork isolation (verify parent and fork are independent) in tests/integration/test_fork_isolation.py
+- [X] T025 [US1] Integration test for fork immutability (history frozen) in tests/integration/test_fork_isolation.py per CA-002
 
 ### Implementation for User Story 1
 
-- [ ] T026 [US1] Implement GraphForkRequest Pydantic model in src/models/requests.py per contracts/graph-forking.md
-- [ ] T027 [US1] Implement GraphForkResponse Pydantic model in src/models/responses.py per contracts/graph-forking.md
-- [ ] T028 [US1] Implement GraphForker service with fork_graph() method in src/services/graph_forker.py per plan.md and contracts/graph-forking.md
-- [ ] T029 [US1] Implement fork validation logic in GraphForker.validate_fork_request() per contracts/graph-forking.md
-- [ ] T030 [US1] Implement deep copy of graph structure up to fork edge in src/services/graph_forker.py per research.md Decision 1
-- [ ] T031 [US1] Implement GraphLineage creation during fork in src/services/graph_forker.py per data-model.md fork flow
-- [ ] T032 [US1] Implement ForkErrorCode enum and GraphForkError in src/models/errors.py per contracts/graph-forking.md
-- [ ] T033 [US1] Add structured logging for fork operations with timestamps per SC-009
-- [ ] T034 [US1] Implement CLI fork command in src/cli/commands/fork.py per plan.md
-- [ ] T035 [US1] Add fork progress indicator in CLI per acceptance scenario SC-001 (<3 clicks/keystrokes)
+- [X] T026 [US1] Implement GraphForkRequest Pydantic model in src/models/requests.py per contracts/graph-forking.md
+- [X] T027 [US1] Implement GraphForkResponse Pydantic model in src/models/responses.py per contracts/graph-forking.md
+- [X] T028 [US1] Implement GraphForker service with fork_graph() method in src/services/graph_forker.py per plan.md and contracts/graph-forking.md
+- [X] T029 [US1] Implement fork validation logic in GraphForker.validate_fork_request() per contracts/graph-forking.md
+- [X] T030 [US1] Implement deep copy of graph structure up to fork edge in src/services/graph_forker.py per research.md Decision 1
+- [X] T031 [US1] Implement GraphLineage creation during fork in src/services/graph_forker.py per data-model.md fork flow
+- [X] T032 [US1] Implement ForkErrorCode enum and GraphForkError in src/models/errors.py per contracts/graph-forking.md
+- [X] T033 [US1] Add structured logging for fork operations with timestamps per SC-009
+- [X] T034 [US1] Implement CLI fork command in src/cli/commands/fork.py per plan.md
+- [X] T035 [US1] Add fork progress indicator in CLI per acceptance scenario SC-001 (<3 clicks/keystrokes)
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently. Fork creation works, isolation verified, immutability enforced.
 
