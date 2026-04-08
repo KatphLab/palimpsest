@@ -26,6 +26,7 @@ from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.coherence_scorer import COHERENCE_THRESHOLD, CoherenceScorer
 from services.structured_logging import OperationLogEntry, log_operation
+from services.utils import initialize_service_deps
 from utils.time import utc_now
 
 __all__ = ["GraphForker"]
@@ -42,18 +43,12 @@ class GraphForker:
         root_dir: Path | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
-        storage_root = root_dir if root_dir is not None else Path.cwd()
-        self._graph_store = (
-            graph_store
-            if graph_store is not None
-            else GraphStore(root_dir=storage_root)
+        self._graph_store, self._lineage_store, self._logger = initialize_service_deps(
+            graph_store=graph_store,
+            lineage_store=lineage_store,
+            root_dir=root_dir,
+            logger=logger,
         )
-        self._lineage_store = (
-            lineage_store
-            if lineage_store is not None
-            else LineageStore(root_dir=storage_root)
-        )
-        self._logger = logger if logger is not None else logging.getLogger(__name__)
 
     def validate_fork_request(
         self,
