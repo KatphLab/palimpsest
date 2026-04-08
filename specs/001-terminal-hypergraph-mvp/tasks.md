@@ -167,11 +167,11 @@
 
 **Purpose**: Hardening, performance, and documentation updates affecting multiple stories.
 
-- [ ] T043 [P] Implement global consistency interval and mutation-burst trigger checks in `src/runtime/consistency.py`
-- [ ] T044 [P] Add integration coverage for termination-majority end-of-session behavior in `tests/integration/test_termination_vote_flow.py`
-- [ ] T045 Harden runtime error handling for invalid IDs and non-writable export paths in `src/runtime/session_runtime.py`
-- [ ] T046 Update terminal command usage and troubleshooting notes in `README.md`
-- [ ] T047 Tune and document production defaults for refresh, cooldown, coherence, and budget limits in `src/config/env.py`
+- [x] T043 [P] Implement global consistency interval and mutation-burst trigger checks in `src/runtime/consistency.py`
+- [x] T044 [P] Add integration coverage for termination-majority end-of-session behavior in `tests/integration/test_termination_vote_flow.py`
+- [x] T045 Harden runtime error handling for invalid IDs and non-writable export paths in `src/runtime/session_runtime.py`
+- [x] T046 Update terminal command usage and troubleshooting notes in `README.md`
+- [x] T047 Tune and document production defaults for refresh, cooldown, coherence, and budget limits in `src/config/env.py`
 
 ---
 
