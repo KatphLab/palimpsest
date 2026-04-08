@@ -38,18 +38,26 @@ class Settings(BaseSettings):
     openai_base_url: str = Field(
         default=_DEFAULT_OPENAI_BASE_URL, description="Base URL for the OpenAI API"
     )
-    session_budget_usd: Decimal = Field(default=_DEFAULT_SESSION_BUDGET_USD, gt=0)
+    session_budget_usd: Decimal = Field(
+        default=_DEFAULT_SESSION_BUDGET_USD,
+        gt=0,
+        description="Maximum expected session spend in USD before budget alerts are emitted.",
+    )
     session_coherence_target: float = Field(
         default=_DEFAULT_SESSION_COHERENCE_TARGET,
         ge=0.0,
         le=1.0,
+        description="Target minimum global coherence score for a running session.",
     )
     stale_view_guardrail_ms: int = Field(
-        default=_DEFAULT_STALE_VIEW_GUARDRAIL_MS, ge=100
+        default=_DEFAULT_STALE_VIEW_GUARDRAIL_MS,
+        ge=100,
+        description="Maximum age in milliseconds before the active view is considered stale.",
     )
     global_consistency_check_interval_ms: int = Field(
         default=_DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS,
         ge=1_000,
+        description="Interval in milliseconds between scheduled global consistency checks.",
     )
     mutation_burst_trigger_count: int = Field(
         default=_DEFAULT_MUTATION_BURST_TRIGGER_COUNT, ge=1
@@ -64,6 +72,7 @@ class Settings(BaseSettings):
     session_mutation_cooldown_ms: int = Field(
         default=_DEFAULT_SESSION_MUTATION_COOLDOWN_MS,
         ge=0,
+        description="Cooldown period in milliseconds before another mutation can be applied.",
     )
     session_max_seed_length: int = Field(default=_DEFAULT_SESSION_MAX_SEED_LENGTH, ge=1)
     entropy_breach_threshold: float = Field(

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import networkx as nx
 
+from graph.utils import get_graph_edge
 from models.common import (
     ProtectionReason,
 )
 from models.graph import GraphEdge, GraphNode
+from utils.time import utc_now
 
 __all__ = ["SessionGraph"]
 
@@ -46,7 +46,7 @@ class SessionGraph:
         if self.get_edge(edge.edge_id) is not None:
             raise ValueError(f"edge '{edge.edge_id}' already exists")
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         stamped_edge = edge.model_copy(update={"created_at": now, "updated_at": now})
 
         self._graph.add_edge(
@@ -60,8 +60,8 @@ class SessionGraph:
         """Return an edge by ID when present."""
 
         for _, _, _, data in self._graph.edges(keys=True, data=True):
-            edge = data.get("edge") if isinstance(data, dict) else None
-            if isinstance(edge, GraphEdge) and edge.edge_id == edge_id:
+            edge = get_graph_edge(data)
+            if edge is not None and edge.edge_id == edge_id:
                 return edge
 
         return None
@@ -100,8 +100,8 @@ class SessionGraph:
         for source_node_id, target_node_id, edge_key, data in self._graph.edges(
             keys=True, data=True
         ):
-            edge = data.get("edge") if isinstance(data, dict) else None
-            if isinstance(edge, GraphEdge) and edge.edge_id == edge_id:
+            edge = get_graph_edge(data)
+            if edge is not None and edge.edge_id == edge_id:
                 return source_node_id, target_node_id, edge_key, edge
 
         return None
@@ -118,7 +118,7 @@ class SessionGraph:
             raise ValueError(f"edge '{edge_id}' does not exist")
 
         source_node_id, target_node_id, edge_key, edge = edge_location
-        now = datetime.now(timezone.utc)
+        now = utc_now()
         updated_edge = edge.model_copy(
             update={
                 "locked": locked,

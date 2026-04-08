@@ -20,17 +20,10 @@ from models.commands import (
     UnlockEdgeCommand,
     UnlockEdgePayload,
 )
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 
 pytestmark = pytest.mark.contracts
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for contract tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def _runtime() -> SessionRuntime:

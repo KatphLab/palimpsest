@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import copy
+import errno
 import logging
 from collections import deque
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from threading import Lock
@@ -20,12 +21,14 @@ from agents.mutation_engine import MutationEngine
 from agents.narrative_context_builder import NarrativeContextBuilder
 from agents.scene_agent import SceneAgent
 from config.env import (
+    _DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS,
     _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD,
     _DEFAULT_MUTATION_BURST_TRIGGER_COUNT,
     _DEFAULT_MUTATION_BURST_WINDOW_SECONDS,
     _DEFAULT_SESSION_MUTATION_COOLDOWN_MS,
 )
 from graph.session_graph import SessionGraph
+from graph.utils import get_graph_node, get_scene_node
 from models.commands import (
     CommandResult,
     ExportSessionCommand,
@@ -56,8 +59,16 @@ from models.graph import GraphEdge, GraphNode
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
 from models.session import Session
+from runtime.consistency import (
+    ConsistencyGuardrailState,
+    mark_global_consistency_check_completed,
+    prune_consistency_guardrails,
+    record_consistency_outcome,
+    should_run_global_consistency_check,
+)
 from runtime.event_log import EventLog
 from runtime.exporter import build_export_artifact, write_export_artifact
+from utils.time import utc_now
 
 __all__ = ["SessionRuntime"]
 
@@ -65,6 +76,9 @@ LOGGER = logging.getLogger(__name__)
 
 _MAX_RUNTIME_EVENTS = 1000
 _NO_ACTIVE_SESSION_ERROR = "no active session exists"
+_COMMAND_SESSION_MISMATCH_ERROR = "command session_id must match the active session"
+_ACTIVE_SESSION_STATE_UNAVAILABLE_ERROR = "active session state is unavailable"
+_OUTPUT_PATH_NOT_WRITABLE_ERROR = "output path is not writable"
 _RUNTIME_MUTATION_ORCHESTRATED_KEY = "runtime_mutation_orchestrated"
 _RUNTIME_MUTATION_RESOLVED_KEY = "runtime_mutation_cycle_resolved"
 _MUTATION_CYCLE_RESOLVED_ERROR = "mutation cycle already resolved"
@@ -78,6 +92,9 @@ _RUNTIME_MUTATION_BURST_WINDOW = timedelta(
 )
 _RUNTIME_MUTATION_BURST_TRIGGER_COUNT = _DEFAULT_MUTATION_BURST_TRIGGER_COUNT
 _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD = _DEFAULT_GLOBAL_MUTATION_STORM_THRESHOLD
+_RUNTIME_GLOBAL_CONSISTENCY_CHECK_INTERVAL = timedelta(
+    milliseconds=_DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS
+)
 _RUNTIME_BUDGET_WARNING_RATIO = Decimal("0.85")
 
 _SESSION_GRAPH_ADD_NODE_ORIGINAL: Callable[[SessionGraph, GraphNode], None] | None = (
@@ -91,6 +108,15 @@ _SESSION_GRAPH_GET_EDGE_ORIGINAL: (
 ) = None
 _SESSION_GRAPH_REMOVE_EDGE_ORIGINAL: Callable[[SessionGraph, str], None] | None = None
 _SESSION_GRAPH_MUTATION_HOOKS_INSTALLED = False
+
+
+def _is_non_writable_export_error(error: OSError) -> bool:
+    """Return whether an OS error represents a non-writable output path."""
+
+    if isinstance(error, PermissionError):
+        return True
+
+    return error.errno in {errno.EACCES, errno.EPERM, errno.EROFS}
 
 
 def _is_runtime_orchestrated(session_graph: SessionGraph) -> bool:
@@ -270,6 +296,9 @@ class SessionRuntime:
         self._mutation_burst_window = _RUNTIME_MUTATION_BURST_WINDOW
         self._mutation_burst_trigger_count = _RUNTIME_MUTATION_BURST_TRIGGER_COUNT
         self._global_mutation_storm_threshold = _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD
+        self._global_consistency_check_interval = (
+            _RUNTIME_GLOBAL_CONSISTENCY_CHECK_INTERVAL
+        )
 
     @property
     def runtime_event_buffer(self) -> tuple[_RuntimeEvent, ...]:
@@ -346,7 +375,7 @@ class SessionRuntime:
             if self.session is not None:
                 raise ValueError("a session is already active")
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             session_id = uuid4()
             self.session = Session(
                 session_id=session_id,
@@ -389,7 +418,7 @@ class SessionRuntime:
             assert self.session is not None
 
             self.session.status = SessionStatus.PAUSED
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             LOGGER.info("paused session %s", self.session_id)
             return self._build_result(command.command_id, "pause_session accepted")
 
@@ -414,19 +443,29 @@ class SessionRuntime:
                 )
 
             self.session.status = SessionStatus.RUNNING
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.state_version += 1
             LOGGER.info("resumed session %s", self.session_id)
             return self._build_result(command.command_id, "resume_session accepted")
 
     def _handle_lock_edge(self, command: LockEdgeCommand) -> CommandResult:
         with self._lock:
-            self._require_active_session(SessionStatus.RUNNING)
-            self._require_command_session_matches_active(command.session_id)
+            try:
+                self._require_active_session(SessionStatus.RUNNING)
+                self._require_command_session_matches_active(command.session_id)
+            except ValueError as error:
+                rejected_result = self._build_precondition_rejection(
+                    command.command_id,
+                    error,
+                )
+                if rejected_result is not None:
+                    return rejected_result
+                raise
+
             assert self.session is not None
 
             self.session_graph.lock_edge(command.payload.edge_id)
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.session.graph_version += 1
             self.state_version += 1
             self._append_runtime_event(
@@ -443,12 +482,22 @@ class SessionRuntime:
 
     def _handle_unlock_edge(self, command: UnlockEdgeCommand) -> CommandResult:
         with self._lock:
-            self._require_active_session(SessionStatus.RUNNING)
-            self._require_command_session_matches_active(command.session_id)
+            try:
+                self._require_active_session(SessionStatus.RUNNING)
+                self._require_command_session_matches_active(command.session_id)
+            except ValueError as error:
+                rejected_result = self._build_precondition_rejection(
+                    command.command_id,
+                    error,
+                )
+                if rejected_result is not None:
+                    return rejected_result
+                raise
+
             assert self.session is not None
 
             self.session_graph.unlock_edge(command.payload.edge_id)
-            self.session.updated_at = datetime.now(timezone.utc)
+            self.session.updated_at = utc_now()
             self.session.graph_version += 1
             self.state_version += 1
             self._append_runtime_event(
@@ -472,7 +521,7 @@ class SessionRuntime:
             assert self.session is not None
             assert self.session_id is not None
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             fork_session_id = uuid4()
             forked_session = self.session.model_copy(deep=True)
             forked_session.session_id = fork_session_id
@@ -528,18 +577,27 @@ class SessionRuntime:
 
     def _handle_inspect_node(self, command: InspectNodeCommand) -> CommandResult:
         with self._lock:
-            if self.session is None or self.session_id is None:
-                raise ValueError(_NO_ACTIVE_SESSION_ERROR)
+            try:
+                if self.session is None or self.session_id is None:
+                    raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
-            self._require_command_session_matches_active(command.session_id)
+                self._require_command_session_matches_active(command.session_id)
+            except ValueError as error:
+                rejected_result = self._build_precondition_rejection(
+                    command.command_id,
+                    error,
+                )
+                if rejected_result is not None:
+                    return rejected_result
+                raise
+
             self._require_inspectable_node(command.payload.node_id)
             assert self.session is not None
 
-            node_data = self.session_graph.graph.nodes[command.payload.node_id]
-            graph_node = node_data.get("node")
-            scene_node = node_data.get("scene_node")
-            assert isinstance(graph_node, GraphNode)
-            assert isinstance(scene_node, SceneNode)
+            graph_node = get_graph_node(self.session_graph, command.payload.node_id)
+            scene_node = get_scene_node(self.session_graph, command.payload.node_id)
+            assert graph_node is not None
+            assert scene_node is not None
 
             chronology = " -> ".join(self.session.active_node_ids) or "unknown"
             last_activated_at = (
@@ -569,16 +627,32 @@ class SessionRuntime:
 
     def _handle_export_session(self, command: ExportSessionCommand) -> CommandResult:
         with self._lock:
-            if self.session is None or self.session_id is None:
-                raise ValueError(_NO_ACTIVE_SESSION_ERROR)
+            try:
+                if self.session is None or self.session_id is None:
+                    raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
-            self._require_command_session_matches_active(command.session_id)
+                self._require_command_session_matches_active(command.session_id)
+            except ValueError as error:
+                rejected_result = self._build_precondition_rejection(
+                    command.command_id,
+                    error,
+                )
+                if rejected_result is not None:
+                    return rejected_result
+                raise
+
             assert self.session is not None
             assert self.session_id is not None
 
-            now = datetime.now(timezone.utc)
+            now = utc_now()
             session_snapshot = self.session.snapshot(captured_at=now)
-            session_state = self._session_states[self.session_id]
+            session_state = self._session_states.get(self.session_id)
+            if session_state is None:
+                return self._build_rejected_result(
+                    command.command_id,
+                    _ACTIVE_SESSION_STATE_UNAVAILABLE_ERROR,
+                )
+
             artifact = build_export_artifact(
                 session_snapshot=session_snapshot,
                 session_graph=self.session_graph,
@@ -599,6 +673,13 @@ class SessionRuntime:
                     state_version=self.state_version,
                     message=str(error),
                 )
+            except OSError as error:
+                if _is_non_writable_export_error(error):
+                    return self._build_rejected_result(
+                        command.command_id,
+                        _OUTPUT_PATH_NOT_WRITABLE_ERROR,
+                    )
+                raise
 
             self._append_session_event(
                 session_id=self.session_id,
@@ -637,7 +718,7 @@ class SessionRuntime:
             self._scene_agent.refresh_visible_state(
                 self.session,
                 self.session_graph,
-                refreshed_at=datetime.now(timezone.utc),
+                refreshed_at=utc_now(),
             )
             return self._run_mutation_cycle_locked()
 
@@ -650,6 +731,30 @@ class SessionRuntime:
             message=message,
         )
 
+    def _build_rejected_result(self, command_id: str, message: str) -> CommandResult:
+        """Build a deterministic rejected command result envelope."""
+
+        return CommandResult(
+            command_id=command_id,
+            accepted=False,
+            session_id=self.session_id,
+            state_version=self.state_version,
+            message=message,
+        )
+
+    def _build_precondition_rejection(
+        self,
+        command_id: str,
+        error: ValueError,
+    ) -> CommandResult | None:
+        """Translate known runtime precondition errors into rejected results."""
+
+        message = str(error)
+        if message in {_NO_ACTIVE_SESSION_ERROR, _COMMAND_SESSION_MISMATCH_ERROR}:
+            return self._build_rejected_result(command_id, message)
+
+        return None
+
     def _run_mutation_cycle_locked(self) -> MutationDecision | None:
         if self.session is None or self.session_id is None:
             return None
@@ -661,8 +766,18 @@ class SessionRuntime:
         if session_state is None:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = utc_now()
+        if (
+            self.session.termination is not None
+            and self.session.termination.termination_reached
+        ):
+            self.session.status = SessionStatus.TERMINATING
+            self.session.updated_at = now
+            self.state_version += 1
+            return None
+
         self._prune_runtime_guardrails(session_state, now)
+        self._maybe_run_global_consistency_check(session_state, now)
         self._emit_budget_telemetry_events()
 
         _reset_runtime_mutation_cycle(self.session_graph)
@@ -756,7 +871,7 @@ class SessionRuntime:
         activation_candidate_id = self._mutation_engine.select_activation_candidate(
             self.session,
             self.session_graph,
-            activated_at=datetime.now(timezone.utc),
+            activated_at=utc_now(),
         )
         if activation_candidate_id is None:
             return None
@@ -920,36 +1035,28 @@ class SessionRuntime:
     ) -> None:
         """Drop expired cooldown and mutation-burst windows for the active session."""
 
-        node_cooldown_expiries = {
-            node_id: expires_at
-            for node_id, expires_at in session_state.node_cooldowns.items()
-            if expires_at > now
-        }
-        session_state.node_cooldowns = node_cooldown_expiries
-
-        burst_window_start = now - self._mutation_burst_window
-        session_state.recent_mutation_times = [
-            mutated_at
-            for mutated_at in session_state.recent_mutation_times
-            if mutated_at >= burst_window_start
-        ]
-
-        if (
-            session_state.burst_cooldown_until is not None
-            and session_state.burst_cooldown_until <= now
-        ):
-            session_state.burst_cooldown_until = None
+        guardrail_state = ConsistencyGuardrailState(
+            node_cooldowns=dict(session_state.node_cooldowns),
+            recent_mutation_times=list(session_state.recent_mutation_times),
+            burst_check_pending=session_state.burst_check_pending,
+            burst_cooldown_until=session_state.burst_cooldown_until,
+        )
+        pruned_state = prune_consistency_guardrails(
+            guardrail_state,
+            now=now,
+            mutation_burst_window=self._mutation_burst_window,
+            mutation_burst_trigger_count=self._mutation_burst_trigger_count,
+        )
+        session_state.node_cooldowns = dict(pruned_state.node_cooldowns)
+        session_state.recent_mutation_times = list(pruned_state.recent_mutation_times)
+        session_state.burst_cooldown_until = pruned_state.burst_cooldown_until
+        session_state.burst_check_pending = pruned_state.burst_check_pending
 
         if (
             session_state.mutation_proposer_backoff_until is not None
             and session_state.mutation_proposer_backoff_until <= now
         ):
             session_state.mutation_proposer_backoff_until = None
-
-        session_state.burst_check_pending = (
-            len(session_state.recent_mutation_times)
-            >= self._mutation_burst_trigger_count
-        )
 
     def _is_node_cooling_down(
         self,
@@ -981,27 +1088,63 @@ class SessionRuntime:
         resolved_at: datetime,
         accepted: bool,
     ) -> None:
-        session_state.recent_mutation_times.append(resolved_at)
-        session_state.burst_check_pending = (
-            len(session_state.recent_mutation_times)
-            >= self._mutation_burst_trigger_count
+        guardrail_state = ConsistencyGuardrailState(
+            node_cooldowns=dict(session_state.node_cooldowns),
+            recent_mutation_times=list(session_state.recent_mutation_times),
+            burst_check_pending=session_state.burst_check_pending,
+            burst_cooldown_until=session_state.burst_cooldown_until,
         )
+        updated_state = record_consistency_outcome(
+            guardrail_state,
+            candidate_id=candidate_id,
+            resolved_at=resolved_at,
+            accepted=accepted,
+            mutation_cooldown=self._mutation_cooldown,
+            mutation_burst_trigger_count=self._mutation_burst_trigger_count,
+            global_mutation_storm_threshold=self._global_mutation_storm_threshold,
+        )
+        session_state.recent_mutation_times = list(updated_state.recent_mutation_times)
+        session_state.burst_check_pending = updated_state.burst_check_pending
+        session_state.burst_cooldown_until = updated_state.burst_cooldown_until
+        session_state.node_cooldowns = dict(updated_state.node_cooldowns)
 
-        if (
-            len(session_state.recent_mutation_times)
-            >= self._global_mutation_storm_threshold
+    def _maybe_run_global_consistency_check(
+        self,
+        session_state: _RuntimeSessionState,
+        now: datetime,
+    ) -> None:
+        """Run interval-gated global consistency sampling when due."""
+
+        if self.session is None or self.session_id is None:
+            return
+
+        coherence = self.session.coherence
+        if coherence is None:
+            return
+
+        guardrail_state = ConsistencyGuardrailState(
+            node_cooldowns=dict(session_state.node_cooldowns),
+            recent_mutation_times=list(session_state.recent_mutation_times),
+            burst_check_pending=session_state.burst_check_pending,
+            burst_cooldown_until=session_state.burst_cooldown_until,
+        )
+        if not should_run_global_consistency_check(
+            guardrail_state,
+            now=now,
+            global_consistency_check_interval=self._global_consistency_check_interval,
+            last_global_consistency_check_at=coherence.sampled_at,
         ):
-            proposed_cooldown_until = resolved_at + self._mutation_cooldown
-            if (
-                session_state.burst_cooldown_until is None
-                or proposed_cooldown_until > session_state.burst_cooldown_until
-            ):
-                session_state.burst_cooldown_until = proposed_cooldown_until
+            return
 
-        if accepted:
-            session_state.node_cooldowns[candidate_id] = (
-                resolved_at + self._mutation_cooldown
-            )
+        updated_state = mark_global_consistency_check_completed(guardrail_state)
+        session_state.burst_check_pending = updated_state.burst_check_pending
+        coherence.sampled_at = now
+        self._append_runtime_event(
+            event_type=EventType.COHERENCE_SAMPLED,
+            command_id=f"coherence-sampled-{self._runtime_event_sequence + 1:06d}",
+            session_id=self.session_id,
+            message="coherence sampled",
+        )
 
     def _require_active_session(self, required_status: SessionStatus) -> None:
         if self.session is None or self.session_id is None:
@@ -1019,7 +1162,7 @@ class SessionRuntime:
             return
 
         if self.session_id is None or command_session_id != self.session_id:
-            raise ValueError("command session_id must match the active session")
+            raise ValueError(_COMMAND_SESSION_MISMATCH_ERROR)
 
     def _activate_session(self, session_id: UUID) -> None:
         session_state = self._session_states.get(session_id)
@@ -1049,7 +1192,7 @@ class SessionRuntime:
             sequence=self._runtime_event_sequence,
             event_type=event_type,
             session_id=session_id,
-            occurred_at=datetime.now(timezone.utc),
+            occurred_at=utc_now(),
             command_id=command_id,
             message=message,
             edge_id=edge_id,
@@ -1102,7 +1245,7 @@ class SessionRuntime:
         event_log = session_state.event_log
         event_id = f"{command_id}-{event_log.next_sequence:06d}"
         sequence = event_log.next_sequence
-        occurred_at = datetime.now(timezone.utc)
+        occurred_at = utc_now()
         event_targets = list(target_ids or [])
         if mutation_id is None and outcome is None:
             event_log.append(
@@ -1233,19 +1376,12 @@ class SessionRuntime:
         if self.session is None or self.session_id is None:
             raise ValueError(_NO_ACTIVE_SESSION_ERROR)
 
-        if not self.session_graph.graph.has_node(node_id):
-            raise ValueError(f"node '{node_id}' does not exist")
-
-        node_data = self.session_graph.graph.nodes[node_id]
-        if not isinstance(node_data, dict):
-            raise ValueError(f"node '{node_id}' does not exist")
-
-        graph_node = node_data.get("node")
-        scene_node = node_data.get("scene_node")
-        if not isinstance(graph_node, GraphNode) or not isinstance(
-            scene_node, SceneNode
-        ):
-            raise ValueError(f"node '{node_id}' is missing inspection metadata")
+        graph_node = get_graph_node(self.session_graph, node_id)
+        scene_node = get_scene_node(self.session_graph, node_id)
+        if graph_node is None or scene_node is None:
+            raise ValueError(
+                f"node '{node_id}' does not exist or is missing inspection metadata"
+            )
 
         if (
             graph_node.session_id != self.session_id

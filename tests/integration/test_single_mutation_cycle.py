@@ -11,17 +11,10 @@ from models.commands import CommandType, StartSessionCommand, StartSessionPayloa
 from models.common import MutationActionType, NodeKind, RelationType
 from models.graph import GraphEdge, GraphNode
 from models.mutation import MutationProposal
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for cycle-enforcement tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def _start_running_session() -> tuple[SessionRuntime, UUID]:

@@ -1,9 +1,9 @@
 import logging.config
-from typing import Any, Dict
+from typing import Any
 
 __all__: list[str] = ["setup_logging"]
 
-LOGGING_CONFIG: Dict[str, Any] = {
+LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {

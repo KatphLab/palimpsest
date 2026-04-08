@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from models.common import DriftCategory, NodeKind
 from models.node import SceneNode
+from utils.time import utc_now
 
 
 def test_scene_node_rejects_seed_protected_non_seed_nodes() -> None:
@@ -35,7 +36,7 @@ def test_scene_node_requires_activation_metadata_consistency() -> None:
             node_kind=NodeKind.SCENE,
             text="scene",
             activation_count=0,
-            last_activated_at=datetime.now(timezone.utc),
+            last_activated_at=utc_now(),
         )
 
     with pytest.raises(ValidationError):

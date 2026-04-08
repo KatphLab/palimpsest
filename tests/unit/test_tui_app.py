@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from importlib import import_module
 from types import ModuleType
 from typing import Callable, cast
@@ -16,6 +15,7 @@ from models.commands import CommandResult
 from models.common import NodeKind, RelationType, SessionStatus
 from models.graph import GraphEdge, GraphNode
 from models.session import Session
+from utils.time import utc_now
 
 
 def _app_module() -> ModuleType:
@@ -323,7 +323,7 @@ def test_worker_and_command_wrappers_delegate_to_helpers(
 
 
 def _build_created_session(seed_text: str) -> Session:
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     return Session(
         session_id=uuid4(),
         status=SessionStatus.CREATED,

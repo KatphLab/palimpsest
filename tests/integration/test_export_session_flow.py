@@ -17,6 +17,7 @@ from models.commands import (
     StartSessionCommand,
     StartSessionPayload,
 )
+from models.export import ExportArtifact
 from runtime.session_runtime import SessionRuntime
 from tests.fixtures import DeterministicSceneGenerationProvider
 
@@ -70,31 +71,39 @@ def test_export_session_rejects_directory_output_path(tmp_path: Path) -> None:
     assert "path" in result.message.lower()
 
 
-def test_export_session_rejects_non_writable_output_path(tmp_path: Path) -> None:
+def test_export_session_rejects_non_writable_output_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     """Export should reject output paths that cannot be written."""
 
     runtime = _build_runtime()
     session_id = _start_session(runtime)
 
-    read_only_dir = tmp_path / "read-only"
-    read_only_dir.mkdir()
-    read_only_dir.chmod(0o555)
-    output_path = read_only_dir / "session-export.json"
+    output_path = tmp_path / "session-export.json"
 
-    try:
-        result = runtime.handle_command(
-            ExportSessionCommand(
-                command_id="cmd-export-readonly-001",
-                command_type=CommandType.EXPORT_SESSION,
-                session_id=session_id,
-                payload=ExportSessionPayload(output_path=str(output_path)),
-            )
+    def _raise_permission_error(
+        output_path: str | Path,  # noqa: ARG001
+        artifact: ExportArtifact,  # noqa: ARG001
+    ) -> Path:
+        raise PermissionError("[Errno 13] Permission denied")
+
+    monkeypatch.setattr(
+        "runtime.session_runtime.write_export_artifact",
+        _raise_permission_error,
+    )
+
+    result = runtime.handle_command(
+        ExportSessionCommand(
+            command_id="cmd-export-readonly-001",
+            command_type=CommandType.EXPORT_SESSION,
+            session_id=session_id,
+            payload=ExportSessionPayload(output_path=str(output_path)),
         )
-    finally:
-        read_only_dir.chmod(0o755)
+    )
 
     assert result.accepted is False
-    assert "writable" in result.message.lower()
+    assert result.message == "output path is not writable"
 
 
 def test_export_session_writes_complete_artifact(tmp_path: Path) -> None:

@@ -1,12 +1,12 @@
 """Contract tests for ordered event stream envelopes."""
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
 from pydantic import ValidationError
 
 from models.events import EventStreamEnvelope, EventType, SessionEvent
+from utils.time import utc_now
 
 
 def test_event_stream_envelope_rejects_non_monotonic_sequences() -> None:
@@ -23,7 +23,7 @@ def test_event_stream_envelope_rejects_non_monotonic_sequences() -> None:
                         "sequence": 1,
                         "session_id": UUID(int=1),
                         "event_type": EventType.SESSION_STARTED,
-                        "occurred_at": datetime.now(timezone.utc),
+                        "occurred_at": utc_now(),
                         "message": "started",
                     },
                     {
@@ -31,7 +31,7 @@ def test_event_stream_envelope_rejects_non_monotonic_sequences() -> None:
                         "sequence": 3,
                         "session_id": UUID(int=1),
                         "event_type": EventType.NODE_ACTIVATED,
-                        "occurred_at": datetime.now(timezone.utc),
+                        "occurred_at": utc_now(),
                         "message": "skipped sequence",
                     },
                 ],
@@ -49,7 +49,7 @@ def test_session_event_forbids_extra_fields() -> None:
                 "sequence": 1,
                 "session_id": UUID(int=2),
                 "event_type": EventType.SESSION_STARTED,
-                "occurred_at": datetime.now(timezone.utc),
+                "occurred_at": utc_now(),
                 "message": "started",
                 "unexpected": True,
             }

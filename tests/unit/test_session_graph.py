@@ -10,14 +10,14 @@ from models.common import NodeKind, ProtectionReason, RelationType
 from models.graph import GraphEdge, GraphNode
 
 
-class _FixedDatetime:
-    """Deterministic datetime provider for timestamp tests."""
+class _FixedUtcNow:
+    """Deterministic utc_now provider for timestamp tests."""
 
     values: list[datetime] = []
     index = 0
 
     @classmethod
-    def now(cls, tz: timezone | None = None) -> datetime:
+    def utc_now(cls) -> datetime:
         value = cls.values[min(cls.index, len(cls.values) - 1)]
         cls.index += 1
         return value
@@ -74,9 +74,9 @@ def test_session_graph_sets_and_updates_edge_timestamps(
     created_at = datetime(2026, 4, 7, 0, 0, tzinfo=timezone.utc)
     locked_at = datetime(2026, 4, 7, 0, 0, 1, tzinfo=timezone.utc)
     unlocked_at = datetime(2026, 4, 7, 0, 0, 2, tzinfo=timezone.utc)
-    _FixedDatetime.values = [created_at, locked_at, unlocked_at]
-    _FixedDatetime.index = 0
-    monkeypatch.setattr("graph.session_graph.datetime", _FixedDatetime)
+    _FixedUtcNow.values = [created_at, locked_at, unlocked_at]
+    _FixedUtcNow.index = 0
+    monkeypatch.setattr("graph.session_graph.utc_now", _FixedUtcNow.utc_now)
 
     graph = SessionGraph()
     node_a = GraphNode(
