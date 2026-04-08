@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 from pathlib import Path
 
@@ -74,7 +73,7 @@ def run_switch_graph_command(
     )
 
     LOGGER.info("%s load target graph", _progress_indicator(1, 2))
-    response = asyncio.run(operation_switcher.switch_graph(request))
+    response = operation_switcher.switch_graph(request)
     LOGGER.info("%s active graph switched", _progress_indicator(2, 2))
     return response
 

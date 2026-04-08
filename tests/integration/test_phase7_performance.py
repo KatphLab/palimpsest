@@ -105,17 +105,15 @@ def test_graph_switch_completes_under_300ms_for_1000_nodes(tmp_path: Path) -> No
     )
 
     switcher = GraphSwitcher(graph_store=store)
-    _ = asyncio.run(
-        switcher.switch_graph(
-            GraphSwitchRequest(
-                target_graph_id="550e8400-e29b-41d4-a716-446655440000",
-            )
+    _ = switcher.switch_graph(
+        GraphSwitchRequest(
+            target_graph_id="550e8400-e29b-41d4-a716-446655440000",
         )
     )
 
     started = perf_counter()
-    response = asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=target_graph_id))
+    response = switcher.switch_graph(
+        GraphSwitchRequest(target_graph_id=target_graph_id)
     )
     elapsed_ms = (perf_counter() - started) * 1000
 
@@ -145,7 +143,7 @@ def test_multi_graph_view_completes_under_200ms_for_50_graphs(tmp_path: Path) ->
         )
 
     started = perf_counter()
-    view = asyncio.run(manager.get_multi_graph_view())
+    view = manager.get_multi_graph_view()
     elapsed_ms = (perf_counter() - started) * 1000
 
     assert len(view.graphs) == 50

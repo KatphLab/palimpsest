@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,8 +27,8 @@ def configure_parser(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--sort-by",
         dest="sort_by",
-        choices=["createdAt", "name", "nodeCount", "lastModified"],
-        default="createdAt",
+        choices=["created_at", "name", "node_count", "last_modified"],
+        default="created_at",
     )
     parser.add_argument(
         "--sort-order",
@@ -88,12 +87,10 @@ def run_list_graphs_command(
     else:
         resolved_root = root_dir if root_dir is not None else Path.cwd()
         operation_manager = GraphManager(root_dir=resolved_root)
-    return asyncio.run(
-        operation_manager.get_multi_graph_view(
-            filters=filters,
-            view_prefs=view_prefs,
-            active_graph_id=active_graph_id,
-        )
+    return operation_manager.get_multi_graph_view(
+        filters=filters,
+        view_prefs=view_prefs,
+        active_graph_id=active_graph_id,
     )
 
 

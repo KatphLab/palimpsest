@@ -148,29 +148,27 @@ class MultiGraphExecutor:
             warning=None,
         )
 
-    async def execute(
-        self, graph_id: str, entry_node: str | None = None
-    ) -> ExecutionState:
+    def execute(self, graph_id: str, entry_node: str | None = None) -> ExecutionState:
         """Alias for ``execute_graph``."""
 
-        return await self.execute_graph(graph_id, entry_node)
+        return self.execute_graph(graph_id, entry_node)
 
-    async def pause(self, graph_id: str) -> ExecutionState:
+    def pause(self, graph_id: str) -> ExecutionState:
         """Alias for ``pause_graph``."""
 
-        return await self.pause_graph(graph_id)
+        return self.pause_graph(graph_id)
 
-    async def resume(self, graph_id: str) -> ExecutionState:
+    def resume(self, graph_id: str) -> ExecutionState:
         """Alias for ``resume_graph``."""
 
-        return await self.resume_graph(graph_id)
+        return self.resume_graph(graph_id)
 
-    async def stop(self, graph_id: str) -> ExecutionState:
+    def stop(self, graph_id: str) -> ExecutionState:
         """Alias for ``stop_graph``."""
 
-        return await self.stop_graph(graph_id)
+        return self.stop_graph(graph_id)
 
-    async def execute_graph(
+    def execute_graph(
         self,
         graph_id: str,
         entry_node: str | None = None,
@@ -218,7 +216,7 @@ class MultiGraphExecutor:
         self._update_resource_usage()
         return existing.model_copy(deep=True)
 
-    async def pause_graph(self, graph_id: str) -> ExecutionState:
+    def pause_graph(self, graph_id: str) -> ExecutionState:
         """Pause execution of a graph instance."""
 
         state = self._require_state(graph_id)
@@ -228,7 +226,7 @@ class MultiGraphExecutor:
         self._update_resource_usage()
         return state.model_copy(deep=True)
 
-    async def resume_graph(self, graph_id: str) -> ExecutionState:
+    def resume_graph(self, graph_id: str) -> ExecutionState:
         """Resume execution of a paused graph instance."""
 
         state = self._require_state(graph_id)
@@ -238,7 +236,7 @@ class MultiGraphExecutor:
         self._update_resource_usage()
         return state.model_copy(deep=True)
 
-    async def stop_graph(self, graph_id: str) -> ExecutionState:
+    def stop_graph(self, graph_id: str) -> ExecutionState:
         """Stop execution of a graph instance while preserving progress state."""
 
         state = self._require_state(graph_id)
@@ -247,7 +245,7 @@ class MultiGraphExecutor:
         self._update_resource_usage()
         return state.model_copy(deep=True)
 
-    async def get_execution_state(self, graph_id: str) -> ExecutionState | None:
+    def get_execution_state(self, graph_id: str) -> ExecutionState | None:
         """Return current execution state for the requested graph."""
 
         state = self._states.get(graph_id)
@@ -256,7 +254,7 @@ class MultiGraphExecutor:
 
         return state.model_copy(deep=True)
 
-    async def get_all_execution_states(self) -> ParallelExecutionState:
+    def get_all_execution_states(self) -> ParallelExecutionState:
         """Return combined execution state for all tracked graphs."""
 
         ordered = [self._states[graph_id] for graph_id in sorted(self._states)]
@@ -362,7 +360,7 @@ class MultiGraphExecutor:
                 completed=state.status == ExecutionStatus.COMPLETED,
             )
 
-    async def get_resource_usage(self) -> ResourceUsage:
+    def get_resource_usage(self) -> ResourceUsage:
         """Return current tracked resource usage and warning state."""
 
         self._update_resource_usage()

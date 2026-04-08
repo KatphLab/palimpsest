@@ -36,7 +36,7 @@ class GraphSwitcher:
         self._active_graph_id: str | None = None
         self._active_last_modified: datetime | None = None
 
-    async def switch_graph(self, request: GraphSwitchRequest) -> GraphSwitchResponse:
+    def switch_graph(self, request: GraphSwitchRequest) -> GraphSwitchResponse:
         """Switch active graph context and return timing and summary metadata."""
 
         started_at = utc_now()

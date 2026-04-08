@@ -55,7 +55,7 @@ class GraphForker:
         )
         self._logger = logger if logger is not None else logging.getLogger(__name__)
 
-    async def validate_fork_request(
+    def validate_fork_request(
         self,
         request: GraphForkRequest,
     ) -> tuple[bool, GraphForkError | None]:
@@ -159,7 +159,7 @@ class GraphForker:
             ),
         )
 
-        is_valid, error = await self.validate_fork_request(request)
+        is_valid, error = self.validate_fork_request(request)
         if not is_valid and error is not None:
             log_operation(
                 self._logger,

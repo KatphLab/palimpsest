@@ -85,7 +85,7 @@ def run_fork_command(
     )
 
     LOGGER.info("%s validate request", _progress_indicator(1, 3))
-    is_valid, error = asyncio.run(operation_forker.validate_fork_request(request))
+    is_valid, error = operation_forker.validate_fork_request(request)
     if not is_valid and error is not None:
         raise ValueError(f"{error.error.value}: {error.message}")
 

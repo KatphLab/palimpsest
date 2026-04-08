@@ -60,14 +60,14 @@ def test_parallel_execution_maintains_isolation(tmp_path: Path) -> None:
     store.save(graph_b)
 
     executor = MultiGraphExecutor(graph_store=store, max_parallel=5)
-    asyncio.run(executor.execute_graph(graph_a.id))
-    asyncio.run(executor.execute_graph(graph_b.id))
+    executor.execute_graph(graph_a.id)
+    executor.execute_graph(graph_b.id)
 
     asyncio.run(executor.advance_step(graph_a.id))
     asyncio.run(executor.advance_step(graph_a.id))
 
-    state_a = asyncio.run(executor.get_execution_state(graph_a.id))
-    state_b = asyncio.run(executor.get_execution_state(graph_b.id))
+    state_a = executor.get_execution_state(graph_a.id)
+    state_b = executor.get_execution_state(graph_b.id)
 
     assert state_a is not None
     assert state_b is not None
@@ -101,8 +101,8 @@ def test_rapid_graph_switching_maintains_independent_state(
     store.save(graph_b)
 
     executor = MultiGraphExecutor(graph_store=store, max_parallel=5)
-    asyncio.run(executor.execute_graph(graph_a.id))
-    asyncio.run(executor.execute_graph(graph_b.id))
+    executor.execute_graph(graph_a.id)
+    executor.execute_graph(graph_b.id)
 
     for _ in range(2):
         asyncio.run(executor.advance_step(graph_a.id))
@@ -116,8 +116,8 @@ def test_rapid_graph_switching_maintains_independent_state(
     with caplog.at_level("WARNING"):
         asyncio.run(executor.advance_step(graph_a.id))
 
-    state_a = asyncio.run(executor.get_execution_state(graph_a.id))
-    state_b = asyncio.run(executor.get_execution_state(graph_b.id))
+    state_a = executor.get_execution_state(graph_a.id)
+    state_b = executor.get_execution_state(graph_b.id)
     assert state_a is not None
     assert state_b is not None
     assert state_a.completed_nodes == 3
@@ -147,8 +147,8 @@ def test_background_operations_do_not_block_foreground(tmp_path: Path) -> None:
     store.save(background_graph)
 
     executor = MultiGraphExecutor(graph_store=store, max_parallel=2)
-    asyncio.run(executor.execute_graph(foreground_graph.id))
-    asyncio.run(executor.execute_graph(background_graph.id))
+    executor.execute_graph(foreground_graph.id)
+    executor.execute_graph(background_graph.id)
 
     async def _scenario() -> float:
         async def _background_loop() -> None:
@@ -165,7 +165,7 @@ def test_background_operations_do_not_block_foreground(tmp_path: Path) -> None:
         return elapsed_ms
 
     elapsed_ms = asyncio.run(_scenario())
-    usage = asyncio.run(executor.get_resource_usage())
+    usage = executor.get_resource_usage()
 
     assert elapsed_ms < 100
     assert usage.active_graphs == 2

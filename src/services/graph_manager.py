@@ -40,7 +40,7 @@ class GraphManager:
         )
         self._logger = logger if logger is not None else logging.getLogger(__name__)
 
-    async def get_multi_graph_view(
+    def get_multi_graph_view(
         self,
         filters: FilterState | None = None,
         view_prefs: ViewPreferences | None = None,
@@ -83,7 +83,7 @@ class GraphManager:
         )
         return response
 
-    async def delete_graph(self, graph_id: str, force: bool = False) -> None:
+    def delete_graph(self, graph_id: str, force: bool = False) -> None:
         """Delete a graph if allowed by child-fork constraints."""
 
         started_at = utc_now()
@@ -130,7 +130,7 @@ class GraphManager:
             ),
         )
 
-    async def archive_graph(self, graph_id: str) -> None:
+    def archive_graph(self, graph_id: str) -> None:
         """Archive an existing graph by updating its lifecycle state."""
 
         started_at = utc_now()

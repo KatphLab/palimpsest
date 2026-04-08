@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
@@ -71,12 +70,10 @@ def test_multi_graph_view_returns_all_active_graphs(tmp_path: Path) -> None:
 
     manager = GraphManager(graph_store=store, lineage_store=lineage_store)
 
-    view = asyncio.run(
-        manager.get_multi_graph_view(
-            filters=FilterState(status="active"),
-            view_prefs=ViewPreferences(sort_by="name", sort_order="asc"),
-            active_graph_id=active_a.id,
-        )
+    view = manager.get_multi_graph_view(
+        filters=FilterState(status="active"),
+        view_prefs=ViewPreferences(sort_by="name", sort_order="asc"),
+        active_graph_id=active_a.id,
     )
 
     assert [summary.name for summary in view.graphs] == ["Alpha", "Beta"]
@@ -103,12 +100,8 @@ def test_graph_switch_loads_correct_state(tmp_path: Path) -> None:
     store.save(graph_b)
 
     switcher = GraphSwitcher(graph_store=store)
-    first = asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=graph_a.id))
-    )
-    second = asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=graph_b.id))
-    )
+    first = switcher.switch_graph(GraphSwitchRequest(target_graph_id=graph_a.id))
+    second = switcher.switch_graph(GraphSwitchRequest(target_graph_id=graph_b.id))
 
     assert first.previous_graph_id is None
     assert second.previous_graph_id == graph_a.id
@@ -137,7 +130,7 @@ def test_multi_graph_view_performance_under_200ms_for_50_graphs(tmp_path: Path) 
         )
 
     started = perf_counter()
-    view = asyncio.run(manager.get_multi_graph_view())
+    view = manager.get_multi_graph_view()
     elapsed_ms = (perf_counter() - started) * 1000
 
     assert len(view.graphs) == 50

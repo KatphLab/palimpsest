@@ -47,16 +47,16 @@ class ExecutionStatus(StrEnum):
 class ExecutionState(StrictBaseModel):
     """Current execution state for a graph instance."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    graph_id: str = Field(min_length=1)
+    graph_id: str = Field(min_length=1, alias="graphId")
     status: ExecutionStatus
-    current_node_id: str | None = None
-    completed_nodes: int = Field(default=0, ge=0)
-    total_nodes: int = Field(ge=0)
+    current_node_id: str | None = Field(default=None, alias="currentNodeId")
+    completed_nodes: int = Field(default=0, ge=0, alias="completedNodes")
+    total_nodes: int = Field(ge=0, alias="totalNodes")
     progress: float = Field(ge=0.0, le=1.0)
-    started_at: UTCDateTime | None = None
-    last_activity: UTCDateTime
+    started_at: UTCDateTime | None = Field(default=None, alias="startedAt")
+    last_activity: UTCDateTime = Field(alias="lastActivity")
 
     @field_validator("graph_id")
     @classmethod
@@ -67,11 +67,11 @@ class ExecutionState(StrictBaseModel):
 class ParallelExecutionState(StrictBaseModel):
     """State of all active graph executions."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     executions: list[ExecutionState] = Field(max_length=50)
-    active_count: int = Field(ge=0)
-    max_parallel: int = Field(default=10, ge=1, le=50)
+    active_count: int = Field(ge=0, alias="activeCount")
+    max_parallel: int = Field(default=10, ge=1, le=50, alias="maxParallel")
 
 
 class IsolationViolation(StrictBaseModel):

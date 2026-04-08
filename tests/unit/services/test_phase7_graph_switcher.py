@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -58,18 +57,14 @@ def test_switch_graph_logs_optimistic_lock_conflict(
     caplog.set_level(logging.WARNING, logger="tests.phase7.switcher")
     switcher = GraphSwitcher(graph_store=store, logger=logger)
 
-    asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=active_graph_id))
-    )
+    switcher.switch_graph(GraphSwitchRequest(target_graph_id=active_graph_id))
 
     stale_remote = store.load(active_graph_id)
     stale_remote.last_modified = stale_remote.last_modified + timedelta(seconds=5)
     stale_remote.metadata["background"] = "updated"
     store.save(stale_remote)
 
-    asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=target_graph_id))
-    )
+    switcher.switch_graph(GraphSwitchRequest(target_graph_id=target_graph_id))
 
     payloads = [json.loads(record.message) for record in caplog.records]
     assert any(

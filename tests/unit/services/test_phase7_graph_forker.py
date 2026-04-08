@@ -94,10 +94,8 @@ def test_fork_request_rejects_cycle_forming_edge(tmp_path: Path) -> None:
     forker = GraphForker(
         graph_store=graph_store, lineage_store=LineageStore(root_dir=tmp_path)
     )
-    is_valid, error = asyncio.run(
-        forker.validate_fork_request(
-            GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_cycle")
-        )
+    is_valid, error = forker.validate_fork_request(
+        GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_cycle")
     )
 
     assert is_valid is False
@@ -121,12 +119,10 @@ def test_fork_request_rejects_low_coherence_transition(tmp_path: Path) -> None:
     forker = GraphForker(
         graph_store=graph_store, lineage_store=LineageStore(root_dir=tmp_path)
     )
-    is_valid, error = asyncio.run(
-        forker.validate_fork_request(
-            GraphForkRequest(
-                source_graph_id=root_graph_id,
-                fork_edge_id="edge_low_coherence",
-            )
+    is_valid, error = forker.validate_fork_request(
+        GraphForkRequest(
+            source_graph_id=root_graph_id,
+            fork_edge_id="edge_low_coherence",
         )
     )
 
@@ -152,10 +148,8 @@ def test_graph_limit_enforcement_returns_graph_limit_error(tmp_path: Path) -> No
         graph_store.save(graph)
 
     forker = GraphForker(graph_store=graph_store, lineage_store=lineage_store)
-    is_valid, error = asyncio.run(
-        forker.validate_fork_request(
-            GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
-        )
+    is_valid, error = forker.validate_fork_request(
+        GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
     )
 
     assert is_valid is False
@@ -194,14 +188,12 @@ def test_fork_create_switch_delete_operations_emit_structured_logs(
     from services.graph_switcher import GraphSwitcher
 
     switcher = GraphSwitcher(graph_store=graph_store, logger=logger)
-    asyncio.run(
-        switcher.switch_graph(GraphSwitchRequest(target_graph_id=sibling_graph_id))
-    )
+    switcher.switch_graph(GraphSwitchRequest(target_graph_id=sibling_graph_id))
 
     manager = GraphManager(
         graph_store=graph_store, lineage_store=lineage_store, logger=logger
     )
-    asyncio.run(manager.delete_graph(response.forked_graph_id, force=False))
+    manager.delete_graph(response.forked_graph_id, force=False)
 
     payloads = [json.loads(record.message) for record in caplog.records]
     operations = {(payload["operation"], payload["status"]) for payload in payloads}

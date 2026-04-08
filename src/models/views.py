@@ -27,11 +27,11 @@ GraphStatusFilter = Literal["active", "archived"]
 class ViewPreferences(StrictBaseModel):
     """User preferences for sorting and rendering multi-graph results."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    sort_by: ViewSortField = "created_at"
-    sort_order: ViewSortOrder = "desc"
-    display_mode: ViewDisplayMode = "list"
+    sort_by: ViewSortField = Field(default="created_at", alias="sortBy")
+    sort_order: ViewSortOrder = Field(default="desc", alias="sortOrder")
+    display_mode: ViewDisplayMode = Field(default="list", alias="displayMode")
 
 
 class FilterState(StrictBaseModel):
