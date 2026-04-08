@@ -9,7 +9,7 @@ from models.common import StrictBaseModel, UTCDateTime
 from models.multi_graph_view import GraphSummary
 from utils.uuid_validation import ensure_valid_uuid
 
-__all__ = ["EdgeReference", "GraphForkResponse"]
+__all__ = ["EdgeReference", "GraphForkResponse", "GraphSwitchResponse"]
 
 _EdgeIdentifier = Annotated[
     str,
@@ -56,3 +56,27 @@ class GraphForkResponse(StrictBaseModel):
     @classmethod
     def _validate_parent_graph_id(cls, value: str) -> str:
         return ensure_valid_uuid(value, field_name="parent_graph_id")
+
+
+class GraphSwitchResponse(StrictBaseModel):
+    """Result payload returned after switching active graph context."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    previous_graph_id: str | None = Field(default=None, alias="previousGraphId")
+    current_graph_id: str = Field(alias="currentGraphId", min_length=1)
+    load_time_ms: float = Field(alias="loadTimeMs", ge=0)
+    graph_summary: GraphSummary = Field(alias="graphSummary")
+
+    @field_validator("previous_graph_id")
+    @classmethod
+    def _validate_previous_graph_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        return ensure_valid_uuid(value, field_name="previous_graph_id")
+
+    @field_validator("current_graph_id")
+    @classmethod
+    def _validate_current_graph_id(cls, value: str) -> str:
+        return ensure_valid_uuid(value, field_name="current_graph_id")

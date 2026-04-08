@@ -8,7 +8,7 @@ from typing_extensions import Annotated
 from models.common import StrictBaseModel
 from utils.uuid_validation import ensure_valid_uuid
 
-__all__ = ["GraphForkRequest"]
+__all__ = ["GraphForkRequest", "GraphSwitchRequest"]
 
 _ForkEdgeId = Annotated[
     str,
@@ -38,3 +38,17 @@ class GraphForkRequest(StrictBaseModel):
     @classmethod
     def _validate_source_graph_id(cls, value: str) -> str:
         return ensure_valid_uuid(value, field_name="source_graph_id")
+
+
+class GraphSwitchRequest(StrictBaseModel):
+    """Request payload to activate a graph in the multi-graph view."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    target_graph_id: str = Field(alias="targetGraphId", min_length=1)
+    preserve_current: bool = Field(default=True, alias="preserveCurrent")
+
+    @field_validator("target_graph_id")
+    @classmethod
+    def _validate_target_graph_id(cls, value: str) -> str:
+        return ensure_valid_uuid(value, field_name="target_graph_id")

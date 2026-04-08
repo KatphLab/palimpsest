@@ -10,6 +10,27 @@ from pydantic import ValidationError
 from models.multi_graph_view import GraphSummary
 
 
+def test_graph_summary_accepts_contract_aliases() -> None:
+    """GraphSummary should deserialize camelCase contract field names."""
+
+    summary = GraphSummary.model_validate(
+        {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "name": "Primary branch",
+            "nodeCount": 12,
+            "edgeCount": 16,
+            "createdAt": datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc),
+            "forkSource": "550e8400-e29b-41d4-a716-446655440001",
+            "currentState": "A tense negotiation unfolds.",
+            "lastModified": datetime(2026, 4, 8, 10, 5, tzinfo=timezone.utc),
+            "labels": ["draft", "hero-path"],
+        }
+    )
+
+    assert summary.node_count == 12
+    assert summary.edge_count == 16
+
+
 def test_graph_summary_accepts_valid_data() -> None:
     """Graph summaries should validate contract-compliant fields."""
 

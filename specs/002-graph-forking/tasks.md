@@ -101,29 +101,29 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T036 [P] [US2] Contract test for MultiGraphView/GraphSummary in tests/contract/test_multi_graph_view.py per contracts/multi-graph-view.md
-- [ ] T037 [P] [US2] Contract test for GraphSwitchRequest/GraphSwitchResponse in tests/contract/test_multi_graph_view.py
-- [ ] T038 [P] [US2] Unit test for GraphSummary model in tests/unit/models/test_multi_graph_view.py
-- [ ] T039 [US2] Integration test for multi-graph view returns all active graphs in tests/integration/test_multi_graph_view.py
-- [ ] T040 [US2] Integration test for graph switch loads correct state in tests/integration/test_multi_graph_view.py
-- [ ] T041 [US2] Performance test for multi-graph view <200ms with 50 graphs per CA-005
+- [X] T036 [P] [US2] Contract test for MultiGraphView/GraphSummary in tests/contract/test_multi_graph_view.py per contracts/multi-graph-view.md
+- [X] T037 [P] [US2] Contract test for GraphSwitchRequest/GraphSwitchResponse in tests/contract/test_multi_graph_view.py
+- [X] T038 [P] [US2] Unit test for GraphSummary model in tests/unit/models/test_multi_graph_view.py
+- [X] T039 [US2] Integration test for multi-graph view returns all active graphs in tests/integration/test_multi_graph_view.py
+- [X] T040 [US2] Integration test for graph switch loads correct state in tests/integration/test_multi_graph_view.py
+- [X] T041 [US2] Performance test for multi-graph view <200ms with 50 graphs per CA-005
 
 ### Implementation for User Story 2
 
-- [ ] T042 [US2] Implement ViewPreferences Pydantic model in src/models/views.py per contracts/multi-graph-view.md
-- [ ] T043 [US2] Implement FilterState Pydantic model in src/models/views.py per contracts/multi-graph-view.md and data-model.md
-- [ ] T044 [US2] Implement MultiGraphView Pydantic model in src/models/views.py per contracts/multi-graph-view.md
-- [ ] T045 [US2] Implement GraphSwitchRequest/GraphSwitchResponse in src/models/requests.py and src/models/responses.py per contracts/multi-graph-view.md
-- [ ] T046 [US2] Implement GraphManager service with get_multi_graph_view() in src/services/graph_manager.py per plan.md
-- [ ] T047 [US2] Implement filtering and sorting in GraphManager per FilterState specification
-- [ ] T048 [US2] Implement graph switch logic in src/services/graph_switcher.py per plan.md and contracts/multi-graph-view.md
-- [ ] T049 [US2] Implement optimistic locking with lastModified timestamp per research.md Decision 6 and spec clarification
-- [ ] T050 [US2] Implement delete_graph() and archive_graph() in GraphManager per contracts/multi-graph-view.md
-- [ ] T051 [US2] Implement CLI list_graphs command in src/cli/commands/list_graphs.py per plan.md
-- [ ] T052 [US2] Implement CLI switch_graph command in src/cli/commands/switch_graph.py per plan.md
-- [ ] T053 [US2] Implement multi_graph_display terminal UI in src/cli/ui/multi_graph_display.py per plan.md
-- [ ] T054 [US2] Add search/filter CLI options to list_graphs command per acceptance scenario 3
-- [ ] T055 [US2] Add structured logging for switch/list/delete operations per SC-009
+- [X] T042 [US2] Implement ViewPreferences Pydantic model in src/models/views.py per contracts/multi-graph-view.md
+- [X] T043 [US2] Implement FilterState Pydantic model in src/models/views.py per contracts/multi-graph-view.md and data-model.md
+- [X] T044 [US2] Implement MultiGraphView Pydantic model in src/models/views.py per contracts/multi-graph-view.md
+- [X] T045 [US2] Implement GraphSwitchRequest/GraphSwitchResponse in src/models/requests.py and src/models/responses.py per contracts/multi-graph-view.md
+- [X] T046 [US2] Implement GraphManager service with get_multi_graph_view() in src/services/graph_manager.py per plan.md
+- [X] T047 [US2] Implement filtering and sorting in GraphManager per FilterState specification
+- [X] T048 [US2] Implement graph switch logic in src/services/graph_switcher.py per plan.md and contracts/multi-graph-view.md
+- [X] T049 [US2] Implement optimistic locking with lastModified timestamp per research.md Decision 6 and spec clarification
+- [X] T050 [US2] Implement delete_graph() and archive_graph() in GraphManager per contracts/multi-graph-view.md
+- [X] T051 [US2] Implement CLI list_graphs command in src/cli/commands/list_graphs.py per plan.md
+- [X] T052 [US2] Implement CLI switch_graph command in src/cli/commands/switch_graph.py per plan.md
+- [X] T053 [US2] Implement multi_graph_display terminal UI in src/cli/ui/multi_graph_display.py per plan.md
+- [X] T054 [US2] Add search/filter CLI options to list_graphs command per acceptance scenario 3
+- [X] T055 [US2] Add structured logging for switch/list/delete operations per SC-009
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently. Multi-graph view shows all graphs, switching works within 500ms, filtering works.
 
