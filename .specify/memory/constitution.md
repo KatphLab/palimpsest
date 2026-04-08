@@ -1,28 +1,28 @@
 <!--
 Sync Impact Report
-Version change: template -> 1.0.0
+Version change: 1.0.0 -> 1.1.0
 Modified principles:
-- PRINCIPLE_1_NAME -> I. Narrative Coherence First
-- PRINCIPLE_2_NAME -> II. Safe, Bounded Graph Mutation
-- PRINCIPLE_3_NAME -> III. Typed Contracts and Deterministic State Evolution
-- PRINCIPLE_4_NAME -> IV. Test-First Verification Gates
-- PRINCIPLE_5_NAME -> V. Budgeted Runtime Performance and Cost
+- No principle changes (names and content unchanged)
+- Project name standardized: "SENH" now clarified as "Palimpsest (Self-Editing Narrative Hypergraph)"
 Added sections:
-- Technical and Product Constraints
-- Development Workflow and Review Gates
+- None
 Removed sections:
 - None
 Templates requiring updates:
-- ✅ updated `.specify/templates/plan-template.md`
-- ✅ updated `.specify/templates/spec-template.md`
-- ✅ updated `.specify/templates/tasks-template.md`
-- ✅ verified `.specify/templates/commands/*.md` (no command templates present)
-- ✅ updated `README.md`
+- ✅ verified `.specify/templates/plan-template.md` (Constitution Check references all 5 principles)
+- ✅ verified `.specify/templates/spec-template.md` (Constitution Alignment references all 5 principles)
+- ✅ verified `.specify/templates/tasks-template.md` (includes coherence/latency/cost instrumentation tasks)
+- ✅ verified `.specify/templates/commands/` (no command templates present - nothing to update)
+- ✅ verified `AGENTS.md` (operational guidance aligns with constitution)
+- ✅ verified `README.md` (architecture aligns with principles)
 Follow-up TODOs:
 - None
 -->
 
-# SENH Constitution
+# Palimpsest Constitution
+
+**Project**: Palimpsest (Self-Editing Narrative Hypergraph)
+**Short Name**: SENH
 
 ## Core Principles
 
@@ -30,7 +30,7 @@ Follow-up TODOs:
 All graph mutations, node activations, and pruning operations MUST preserve or improve
 global narrative coherence. The system MUST continuously track coherence with explicit
 metrics and MUST fail fast when coherence drops below agreed thresholds. Rationale:
-SENH exists to produce coherent-yet-unpredictable stories, so coherence is the primary
+Palimpsest exists to produce coherent-yet-unpredictable stories, so coherence is the primary
 quality target and takes precedence over mutation volume.
 
 ### II. Safe, Bounded Graph Mutation
@@ -58,7 +58,7 @@ Rationale: emergent systems are high-risk for regressions without strict verific
 Session-level latency and API cost budgets MUST be defined in every feature spec, and
 implementations MUST include instrumentation that proves budget adherence in tests or
 benchmarks. If a change improves quality but exceeds budget, it MUST include a documented
-mitigation plan before merge. Rationale: SENH is a real-time prototype and must remain
+mitigation plan before merge. Rationale: Palimpsest is a real-time prototype and must remain
 operable within practical cost and responsiveness limits.
 
 ## Technical and Product Constraints
@@ -85,7 +85,7 @@ operable within practical cost and responsiveness limits.
 5. Reviewers MUST block merges when constitutional requirements are missing or unverifiable.
 
 ## Governance
-This constitution is the authoritative engineering policy for SENH and supersedes
+This constitution is the authoritative engineering policy for Palimpsest and supersedes
 conflicting local conventions.
 
 - Amendment Process: propose changes via PR that includes rationale, impacted principles,
@@ -101,4 +101,4 @@ conflicting local conventions.
 - Operational Guidance: `AGENTS.md` defines daily coding practices that implement this
   constitution.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-06
+**Version**: 1.1.0 | **Ratified**: 2026-04-06 | **Last Amended**: 2026-04-08
