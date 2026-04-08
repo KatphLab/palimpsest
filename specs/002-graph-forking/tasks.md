@@ -14,14 +14,14 @@
 
 **Purpose**: Project initialization and basic structure per plan.md
 
-- [ ] T001 Verify Python 3.12+ environment and uv installation
-- [ ] T002 [P] Create directory structure per plan.md project structure section in src/ and tests/
-- [ ] T003 [P] Create models package with __init__.py at src/models/
-- [ ] T004 [P] Create services package with __init__.py at src/services/
-- [ ] T005 [P] Create persistence package with __init__.py at src/persistence/
-- [ ] T006 [P] Create runtime package with __init__.py at src/runtime/
-- [ ] T007 [P] Create cli package with __init__.py at src/cli/commands/ and src/cli/ui/
-- [ ] T008 [P] Create tests/unit/models/, tests/unit/services/, tests/integration/, tests/contract/ directories
+- [X] T001 Verify Python 3.12+ environment and uv installation
+- [X] T002 [P] Create directory structure per plan.md project structure section in src/ and tests/
+- [X] T003 [P] Create models package with __init__.py at src/models/
+- [X] T004 [P] Create services package with __init__.py at src/services/
+- [X] T005 [P] Create persistence package with __init__.py at src/persistence/
+- [X] T006 [P] Create runtime package with __init__.py at src/runtime/
+- [X] T007 [P] Create cli package with __init__.py at src/cli/commands/ and src/cli/ui/
+- [X] T008 [P] Create tests/unit/models/, tests/unit/services/, tests/integration/, tests/contract/ directories
 
 **Checkpoint**: Project structure matches plan.md, ready for foundational implementation
 
