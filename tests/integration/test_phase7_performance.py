@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
@@ -69,10 +68,8 @@ def test_fork_creation_completes_under_500ms(tmp_path: Path) -> None:
     forker = GraphForker(graph_store=store, lineage_store=lineage_store)
 
     started = perf_counter()
-    _ = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_900")
-        )
+    _ = forker.fork_graph(
+        GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_900")
     )
     elapsed_ms = (perf_counter() - started) * 1000
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -59,17 +58,11 @@ def test_fork_of_fork_creates_depth_two_lineage(tmp_path: Path) -> None:
     graph_store.save(_build_graph_instance(graph_id=root_graph_id))
 
     forker = GraphForker(graph_store=graph_store, lineage_store=lineage_store)
-    first = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_1")
-        )
+    first = forker.fork_graph(
+        GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_1")
     )
-    second = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=first.forked_graph_id, fork_edge_id="edge_1"
-            )
-        )
+    second = forker.fork_graph(
+        GraphForkRequest(source_graph_id=first.forked_graph_id, fork_edge_id="edge_1")
     )
 
     ancestry = lineage_store.get_ancestry(second.forked_graph_id)
@@ -178,10 +171,8 @@ def test_fork_create_switch_delete_operations_emit_structured_logs(
         lineage_store=lineage_store,
         logger=logger,
     )
-    response = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_1")
-        )
+    response = forker.fork_graph(
+        GraphForkRequest(source_graph_id=root_graph_id, fork_edge_id="edge_1")
     )
 
     from models.requests import GraphSwitchRequest

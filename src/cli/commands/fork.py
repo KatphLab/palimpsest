@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import logging
 from pathlib import Path
 
@@ -90,7 +89,7 @@ def run_fork_command(
         raise ValueError(f"{error.error.value}: {error.message}")
 
     LOGGER.info("%s create fork", _progress_indicator(2, 3))
-    response = asyncio.run(operation_forker.fork_graph(request))
+    response: GraphForkResponse = operation_forker.fork_graph(request)
 
     LOGGER.info("%s complete", _progress_indicator(3, 3))
     return response

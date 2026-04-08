@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import string
 from datetime import datetime, timezone
@@ -61,8 +60,8 @@ def test_custom_seed_produces_deterministic_output(tmp_path: Path) -> None:
         custom_seed="deterministic-seed-42",
     )
 
-    first = asyncio.run(forker.fork_graph(request))
-    second = asyncio.run(forker.fork_graph(request))
+    first = forker.fork_graph(request)
+    second = forker.fork_graph(request)
 
     first_graph = store.load(first.forked_graph_id)
     second_graph = store.load(second.forked_graph_id)
@@ -96,15 +95,11 @@ def test_auto_generated_seed_when_custom_seed_absent(tmp_path: Path) -> None:
 
     forker = GraphForker(graph_store=store, lineage_store=lineage_store)
 
-    first = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
-        )
+    first = forker.fork_graph(
+        GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
     )
-    second = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
-        )
+    second = forker.fork_graph(
+        GraphForkRequest(source_graph_id=source_graph_id, fork_edge_id="edge_1")
     )
 
     first_graph = store.load(first.forked_graph_id)

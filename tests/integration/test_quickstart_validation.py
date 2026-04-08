@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -82,14 +81,12 @@ def test_quickstart_python_api_example_runs_successfully(tmp_path: Path) -> None
         graph_store=graph_store,
         lineage_store=LineageStore(root_dir=tmp_path),
     )
-    response = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=source_graph_id,
-                fork_edge_id="edge_1",
-                custom_seed="quickstart-python-seed",
-                label="Quickstart Python Fork",
-            )
+    response = forker.fork_graph(
+        GraphForkRequest(
+            source_graph_id=source_graph_id,
+            fork_edge_id="edge_1",
+            custom_seed="quickstart-python-seed",
+            label="Quickstart Python Fork",
         )
     )
 

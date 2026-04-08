@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,8 +62,8 @@ def test_deterministic_reproduction_with_same_seed(tmp_path: Path) -> None:
         custom_seed="reproducible-seed-42",
     )
 
-    first = asyncio.run(forker.fork_graph(request))
-    second = asyncio.run(forker.fork_graph(request))
+    first = forker.fork_graph(request)
+    second = forker.fork_graph(request)
 
     first_graph = graph_store.load(first.forked_graph_id)
     second_graph = graph_store.load(second.forked_graph_id)
@@ -103,22 +102,18 @@ def test_seed_scoping_same_seed_different_graphs_has_independent_sequences(
 
     forker = GraphForker(graph_store=graph_store, lineage_store=lineage_store)
     seed_value = "shared-seed"
-    first = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=first_source_graph_id,
-                fork_edge_id="edge_1",
-                custom_seed=seed_value,
-            )
+    first = forker.fork_graph(
+        GraphForkRequest(
+            source_graph_id=first_source_graph_id,
+            fork_edge_id="edge_1",
+            custom_seed=seed_value,
         )
     )
-    second = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=second_source_graph_id,
-                fork_edge_id="edge_1",
-                custom_seed=seed_value,
-            )
+    second = forker.fork_graph(
+        GraphForkRequest(
+            source_graph_id=second_source_graph_id,
+            fork_edge_id="edge_1",
+            custom_seed=seed_value,
         )
     )
 

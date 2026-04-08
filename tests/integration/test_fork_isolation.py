@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -56,13 +55,11 @@ def test_fork_isolation_keeps_parent_and_child_independent(tmp_path: Path) -> No
     graph_store.save(_build_source_graph(source_graph_id))
 
     forker = GraphForker(graph_store=graph_store, lineage_store=lineage_store)
-    response = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=source_graph_id,
-                fork_edge_id="edge_1",
-                custom_seed="fork-seed",
-            )
+    response = forker.fork_graph(
+        GraphForkRequest(
+            source_graph_id=source_graph_id,
+            fork_edge_id="edge_1",
+            custom_seed="fork-seed",
         )
     )
 
@@ -88,12 +85,10 @@ def test_fork_immutability_keeps_history_snapshot_frozen(tmp_path: Path) -> None
     graph_store.save(_build_source_graph(source_graph_id))
 
     forker = GraphForker(graph_store=graph_store, lineage_store=lineage_store)
-    response = asyncio.run(
-        forker.fork_graph(
-            GraphForkRequest(
-                source_graph_id=source_graph_id,
-                fork_edge_id="edge_1",
-            )
+    response = forker.fork_graph(
+        GraphForkRequest(
+            source_graph_id=source_graph_id,
+            fork_edge_id="edge_1",
         )
     )
 

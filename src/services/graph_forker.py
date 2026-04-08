@@ -139,7 +139,7 @@ class GraphForker:
 
         return True, None
 
-    async def fork_graph(self, request: GraphForkRequest) -> GraphForkResponse:
+    def fork_graph(self, request: GraphForkRequest) -> GraphForkResponse:
         """Fork a source graph at a given edge and persist child lineage."""
 
         started_at = utc_now()
