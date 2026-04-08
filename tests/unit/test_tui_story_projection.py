@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from graph.session_graph import SessionGraph
@@ -10,10 +9,11 @@ from models.common import NodeKind, RelationType, SessionStatus
 from models.graph import GraphEdge, GraphNode
 from models.session import Session
 from tui.story_projection import build_story_lines
+from utils.time import utc_now
 
 
 def _build_session(seed_text: str = "Seed text") -> Session:
-    now = datetime.now(timezone.utc)
+    now = utc_now()
     return Session(
         session_id=uuid4(),
         status=SessionStatus.CREATED,

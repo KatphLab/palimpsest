@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
 import pytest
 
 from agents.llm_mutation_proposer import LLMMutationProposer
@@ -17,6 +15,7 @@ from tests.fixtures import (
     SequencedMutationProposalProvider,
     build_mutation_response,
 )
+from utils.time import utc_now
 
 pytestmark = pytest.mark.integration
 
@@ -55,7 +54,7 @@ def test_termination_majority_transitions_session_to_terminating() -> None:
         votes_for_termination=active_node_count,
         votes_against_termination=0,
         majority_threshold=0.6,
-        last_updated_at=datetime.now(timezone.utc),
+        last_updated_at=utc_now(),
     )
 
     decision = runtime.advance_session_cycle()
