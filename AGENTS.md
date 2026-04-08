@@ -95,3 +95,10 @@ uv run pytest
 - Use **`pytest-cov`** for coverage reporting
 - Aim for ≥80% coverage on new code
 - Name test files `test_<module>.py` and test functions `test_<behavior>()`
+
+## Active Technologies
+- Python 3.12+ + NetworkX (graph data structure), LangGraph (agent orchestration), Pydantic (typed schemas), pytest (testing) (002-graph-forking)
+- File-based persistence (JSON-serialized graph states per Constitution privacy baseline) (002-graph-forking)
+
+## Recent Changes
+- 002-graph-forking: Added Python 3.12+ + NetworkX (graph data structure), LangGraph (agent orchestration), Pydantic (typed schemas), pytest (testing)
