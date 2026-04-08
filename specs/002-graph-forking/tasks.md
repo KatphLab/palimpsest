@@ -139,25 +139,25 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T056 [P] [US3] Contract test for ExecutionState/ParallelExecutionState in tests/contract/test_parallel_execution.py per contracts/parallel-execution.md
-- [ ] T057 [P] [US3] Integration test for parallel execution maintains isolation in tests/integration/test_parallel_execution.py per contracts/parallel-execution.md isolation contract
-- [ ] T058 [US3] Integration test for rapid graph switching maintains independent state per acceptance scenario 2
-- [ ] T059 [US3] Integration test for background operations don't block foreground per acceptance scenario 3
+- [X] T056 [P] [US3] Contract test for ExecutionState/ParallelExecutionState in tests/contract/test_parallel_execution.py per contracts/parallel-execution.md
+- [X] T057 [P] [US3] Integration test for parallel execution maintains isolation in tests/integration/test_parallel_execution.py per contracts/parallel-execution.md isolation contract
+- [X] T058 [US3] Integration test for rapid graph switching maintains independent state per acceptance scenario 2
+- [X] T059 [US3] Integration test for background operations don't block foreground per acceptance scenario 3
 
 ### Implementation for User Story 3
 
-- [ ] T060 [US3] Implement ExecutionStatus enum in src/models/execution.py per contracts/parallel-execution.md
-- [ ] T061 [US3] Implement ExecutionState Pydantic model in src/models/execution.py per contracts/parallel-execution.md
-- [ ] T062 [US3] Implement ParallelExecutionState Pydantic model in src/models/execution.py per contracts/parallel-execution.md
-- [ ] T063 [US3] Implement MultiGraphExecutor service in src/runtime/multi_graph_executor.py per plan.md
-- [ ] T064 [US3] Implement execute_graph(), pause_graph(), resume_graph(), stop_graph() methods per contracts/parallel-execution.md
-- [ ] T065 [US3] Implement advance_step() with isolation guarantee per contracts/parallel-execution.md
-- [ ] T066 [US3] Implement GraphRegistry for active graph tracking in src/runtime/graph_registry.py per plan.md
-- [ ] T067 [US3] Implement state isolation enforcement (deep copy validation) per research.md Decision 1
-- [ ] T068 [US3] Implement ConflictInfo and ConflictHandler per contracts/parallel-execution.md conflict detection section
-- [ ] T069 [US3] Implement user notification on conflict per spec clarification (optimistic locking with last-write-wins)
-- [ ] T070 [US3] Add ResourceUsage tracking per contracts/parallel-execution.md resource limits
-- [ ] T071 [US3] Implement resource warning when approaching limits per edge case: Memory constraints
+- [X] T060 [US3] Implement ExecutionStatus enum in src/models/execution.py per contracts/parallel-execution.md
+- [X] T061 [US3] Implement ExecutionState Pydantic model in src/models/execution.py per contracts/parallel-execution.md
+- [X] T062 [US3] Implement ParallelExecutionState Pydantic model in src/models/execution.py per contracts/parallel-execution.md
+- [X] T063 [US3] Implement MultiGraphExecutor service in src/runtime/multi_graph_executor.py per plan.md
+- [X] T064 [US3] Implement execute_graph(), pause_graph(), resume_graph(), stop_graph() methods per contracts/parallel-execution.md
+- [X] T065 [US3] Implement advance_step() with isolation guarantee per contracts/parallel-execution.md
+- [X] T066 [US3] Implement GraphRegistry for active graph tracking in src/runtime/graph_registry.py per plan.md
+- [X] T067 [US3] Implement state isolation enforcement (deep copy validation) per research.md Decision 1
+- [X] T068 [US3] Implement ConflictInfo and ConflictHandler per contracts/parallel-execution.md conflict detection section
+- [X] T069 [US3] Implement user notification on conflict per spec clarification (optimistic locking with last-write-wins)
+- [X] T070 [US3] Add ResourceUsage tracking per contracts/parallel-execution.md resource limits
+- [X] T071 [US3] Implement resource warning when approaching limits per edge case: Memory constraints
 
 **Checkpoint**: At this point, User Stories 1, 2, AND 3 should all work independently. Parallel execution maintains isolation, no blocking, conflict handling works.
 
