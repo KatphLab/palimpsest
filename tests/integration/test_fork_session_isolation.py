@@ -13,17 +13,10 @@ from models.commands import (
 )
 from models.common import NodeKind
 from models.graph import GraphNode
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for fork-isolation tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def _graph_signature(

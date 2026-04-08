@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -12,6 +11,7 @@ from pydantic import ConfigDict, Field
 from graph.session_graph import SessionGraph
 from models.common import NodeKind, StrictBaseModel, UTCDateTime
 from models.session import Session
+from utils.time import utc_now
 
 __all__ = ["MutationEngine"]
 
@@ -55,7 +55,7 @@ class MutationEngine:
     ) -> str | None:
         """Run the proposer subgraph and return a single activation candidate."""
 
-        event_at = activated_at or datetime.now(timezone.utc)
+        event_at = activated_at or utc_now()
         initial_state = _ProposerStateModel(
             session=session,
             session_graph=session_graph,

@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from models.common import SessionStatus, StrictBaseModel, UTCDateTime
+from utils.time import utc_now
 
 
 class ExampleModel(StrictBaseModel):
@@ -22,7 +23,7 @@ def test_strict_base_model_forbids_extra_fields() -> None:
         ExampleModel.model_validate(
             {
                 "status": "created",
-                "occurred_at": datetime.now(timezone.utc),
+                "occurred_at": utc_now(),
                 "unexpected": "value",
             }
         )
@@ -52,6 +53,6 @@ def test_enum_field_rejects_invalid_value() -> None:
         ExampleModel.model_validate(
             {
                 "status": "not-a-status",
-                "occurred_at": datetime.now(timezone.utc),
+                "occurred_at": utc_now(),
             }
         )

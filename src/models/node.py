@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID
 
@@ -15,6 +14,9 @@ from models.common import (
     StrictBaseModel,
     UTCDateTime,
 )
+from utils.time import utc_now
+
+__all__ = ["SceneNode"]
 
 __all__ = ["SceneNode"]
 
@@ -60,7 +62,7 @@ class SceneNode(StrictBaseModel):
         """Record one node activation with fresh metadata."""
 
         self.activation_count += 1
-        self.last_activated_at = activated_at or datetime.now(timezone.utc)
+        self.last_activated_at = activated_at or utc_now()
         self.drift_category = self._derive_drift_category()
 
     def _derive_drift_category(self) -> DriftCategory:

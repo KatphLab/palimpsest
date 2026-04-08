@@ -12,21 +12,14 @@ from graph.session_graph import SessionGraph
 from models.commands import CommandType, StartSessionCommand, StartSessionPayload
 from models.common import BudgetTelemetry
 from models.events import EventType
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
 from tests.fixtures import (
+    DeterministicSceneGenerationProvider,
     SequencedMutationProposalProvider,
     build_mutation_response,
 )
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for budget alert tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def _build_runtime() -> SessionRuntime:

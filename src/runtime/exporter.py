@@ -7,7 +7,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -26,6 +26,7 @@ from models.export import (
 from models.graph import GraphEdge, GraphNode
 from models.node import SceneNode
 from models.session import SessionSnapshot
+from utils.time import utc_now
 
 __all__ = [
     "build_export_artifact",
@@ -188,7 +189,7 @@ def build_export_artifact(
 ) -> ExportArtifact:
     """Build a complete export artifact from a frozen session snapshot."""
 
-    exported_at = exported_at or datetime.now(timezone.utc)
+    exported_at = exported_at or utc_now()
     ordered_events = sorted(events, key=lambda event: event.sequence)
     export_session = build_export_session_snapshot(session_snapshot)
     export_graph = build_export_graph(

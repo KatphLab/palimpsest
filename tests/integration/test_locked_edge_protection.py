@@ -16,17 +16,10 @@ from models.commands import (
 )
 from models.common import ProtectionReason
 from models.graph import GraphEdge
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for lock-protection tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def _single_edge(runtime: SessionRuntime) -> GraphEdge:

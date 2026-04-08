@@ -7,17 +7,10 @@ import pytest
 from agents.scene_agent import SceneAgent
 from graph.session_graph import SessionGraph
 from models.commands import CommandType, StartSessionCommand, StartSessionPayload
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for autonomous progress tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 def test_start_session_does_not_advance_graph_without_manual_cycle() -> None:
