@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 import networkx as nx
 
+from graph.utils import get_graph_edge
 from models.common import (
     ProtectionReason,
 )
@@ -60,8 +61,8 @@ class SessionGraph:
         """Return an edge by ID when present."""
 
         for _, _, _, data in self._graph.edges(keys=True, data=True):
-            edge = data.get("edge") if isinstance(data, dict) else None
-            if isinstance(edge, GraphEdge) and edge.edge_id == edge_id:
+            edge = get_graph_edge(data)
+            if edge is not None and edge.edge_id == edge_id:
                 return edge
 
         return None
@@ -100,8 +101,8 @@ class SessionGraph:
         for source_node_id, target_node_id, edge_key, data in self._graph.edges(
             keys=True, data=True
         ):
-            edge = data.get("edge") if isinstance(data, dict) else None
-            if isinstance(edge, GraphEdge) and edge.edge_id == edge_id:
+            edge = get_graph_edge(data)
+            if edge is not None and edge.edge_id == edge_id:
                 return source_node_id, target_node_id, edge_key, edge
 
         return None
