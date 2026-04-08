@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import logging
 from collections import deque
-from collections.abc import Iterable
 from datetime import datetime, timezone
+from typing import Iterable
 
 from graph.session_graph import SessionGraph
+from graph.utils import (
+    get_graph_edge,
+    get_graph_node,
+    get_scene_node,
+    is_protected_node,
+    require_graph_node,
+)
 from models.common import (
     CheckStatus,
     MutationActionType,
@@ -110,7 +117,7 @@ class MutationAgent:
         self, proposal: MutationProposal, session_graph: SessionGraph
     ) -> MutationDecision:
         anchor_node_id = self._anchor_node_id(proposal)
-        anchor_node = self._require_node(session_graph, anchor_node_id)
+        anchor_node = get_graph_node(session_graph, anchor_node_id)
         if anchor_node is None:
             return self._build_decision(
                 proposal,
@@ -141,8 +148,8 @@ class MutationAgent:
         self, proposal: MutationProposal, session_graph: SessionGraph
     ) -> MutationDecision:
         source_node_id, target_node_id = self._edge_endpoints(proposal)
-        source_node = self._require_node(session_graph, source_node_id)
-        target_node = self._require_node(session_graph, target_node_id)
+        source_node = get_graph_node(session_graph, source_node_id)
+        target_node = get_graph_node(session_graph, target_node_id)
 
         if source_node is None or target_node is None:
             return self._build_decision(
@@ -247,7 +254,7 @@ class MutationAgent:
         self, proposal: MutationProposal, session_graph: SessionGraph
     ) -> MutationDecision:
         node_id = self._node_target_id(proposal)
-        node = self._require_node(session_graph, node_id)
+        node = get_graph_node(session_graph, node_id)
         if node is None:
             return self._build_decision(
                 proposal,
@@ -262,7 +269,7 @@ class MutationAgent:
                 ],
             )
 
-        if self._is_protected_node(node):
+        if is_protected_node(node):
             return self._build_decision(
                 proposal,
                 accepted=False,
@@ -292,7 +299,7 @@ class MutationAgent:
         self, proposal: MutationProposal, session_graph: SessionGraph
     ) -> MutationDecision:
         root_node_id = self._node_target_id(proposal)
-        root_node = self._require_node(session_graph, root_node_id)
+        root_node = get_graph_node(session_graph, root_node_id)
         if root_node is None:
             return self._build_decision(
                 proposal,
@@ -341,17 +348,10 @@ class MutationAgent:
         self, decision: MutationDecision, session_graph: SessionGraph
     ) -> None:
         anchor_node_id = self._anchor_node_id(decision)
-        anchor_node = self._require_node(session_graph, anchor_node_id)
-        if anchor_node is None:
-            raise ValueError(f"anchor node '{anchor_node_id}' does not exist")
+        anchor_node = require_graph_node(session_graph, anchor_node_id)
 
-        node_data = session_graph.graph.nodes[anchor_node_id]
-        anchor_scene_node = node_data.get("scene_node")
-        anchor_text = (
-            anchor_scene_node.text
-            if isinstance(anchor_scene_node, SceneNode)
-            else anchor_node.text
-        )
+        anchor_scene_node = get_scene_node(session_graph, anchor_node_id)
+        anchor_text = anchor_scene_node.text if anchor_scene_node else anchor_node.text
         new_node_id = self._unique_node_id(
             session_graph,
             f"{anchor_node_id}-{decision.decision_id}-node",
@@ -397,13 +397,9 @@ class MutationAgent:
         self, decision: MutationDecision, session_graph: SessionGraph
     ) -> None:
         source_node_id, target_node_id = self._edge_endpoints(decision)
-        source_node = self._require_node(session_graph, source_node_id)
-        if source_node is None:
-            raise ValueError(f"source node '{source_node_id}' does not exist")
-
-        target_node = self._require_node(session_graph, target_node_id)
-        if target_node is None:
-            raise ValueError(f"target node '{target_node_id}' does not exist")
+        source_node = require_graph_node(session_graph, source_node_id)
+        # Validate target exists (raises if missing)
+        _ = require_graph_node(session_graph, target_node_id)
 
         session_graph.add_edge(
             GraphEdge(
@@ -419,18 +415,15 @@ class MutationAgent:
         self, decision: MutationDecision, session_graph: SessionGraph
     ) -> None:
         node_id = self._node_target_id(decision)
-        node = self._require_node(session_graph, node_id)
-        if node is None:
-            raise ValueError(f"node '{node_id}' does not exist")
+        node = require_graph_node(session_graph, node_id)
 
-        node_data = session_graph.graph.nodes[node_id]
-        scene_node = node_data.get("scene_node")
+        scene_node = get_scene_node(session_graph, node_id)
         rewritten_text = f"{node.text} :: rewritten {decision.decision_id}"
 
         session_graph.graph.nodes[node_id]["node"] = node.model_copy(
             update={"text": rewritten_text}
         )
-        if isinstance(scene_node, SceneNode):
+        if scene_node is not None:
             session_graph.graph.nodes[node_id]["scene_node"] = scene_node.model_copy(
                 update={"text": rewritten_text}
             )
@@ -519,15 +512,12 @@ class MutationAgent:
     def _branch_node_protection_reason(
         self, session_graph: SessionGraph, node_id: str
     ) -> str | None:
-        node_data = self._node_data(session_graph, node_id)
-        if node_data is None:
+        graph_node = get_graph_node(session_graph, node_id)
+        scene_node = get_scene_node(session_graph, node_id)
+        if graph_node is None and scene_node is None:
             return "missing branch node"
 
-        raw_node = node_data.get("node")
-        node_to_check = (
-            raw_node if isinstance(raw_node, (GraphNode, SceneNode)) else None
-        )
-        if self._is_protected_node(node_to_check):
+        if is_protected_node(graph_node) or is_protected_node(scene_node):
             return "protected node"
 
         return None
@@ -547,11 +537,11 @@ class MutationAgent:
         return None
 
     def _edge_view_protection_reason(
-        self, edge_view: Iterable[tuple[object, object, object, object]]
+        self, edge_view: Iterable[tuple[object, object, object, dict[str, object]]]
     ) -> str | None:
         for _, _, _, edge_data in edge_view:
-            edge = edge_data.get("edge") if isinstance(edge_data, dict) else None
-            if not isinstance(edge, GraphEdge):
+            edge = get_graph_edge(edge_data)
+            if edge is None:
                 continue
 
             if edge.locked:
@@ -561,34 +551,6 @@ class MutationAgent:
                 return "protected edge"
 
         return None
-
-    def _require_node(
-        self, session_graph: SessionGraph, node_id: str
-    ) -> GraphNode | None:
-        node_data = self._node_data(session_graph, node_id)
-        if node_data is None:
-            return None
-
-        node = node_data.get("node")
-        return node if isinstance(node, GraphNode) else None
-
-    def _node_data(
-        self, session_graph: SessionGraph, node_id: str
-    ) -> dict[str, object] | None:
-        if not session_graph.graph.has_node(node_id):
-            return None
-
-        node_data = session_graph.graph.nodes[node_id]
-        return node_data if isinstance(node_data, dict) else None
-
-    def _is_protected_node(self, node: GraphNode | SceneNode | None) -> bool:
-        if node is None:
-            return False
-
-        if isinstance(node, SceneNode):
-            return node.is_seed_protected or node.node_kind is NodeKind.SEED
-
-        return node.node_kind is NodeKind.SEED
 
     def _unique_node_id(self, session_graph: SessionGraph, base_node_id: str) -> str:
         candidate = base_node_id

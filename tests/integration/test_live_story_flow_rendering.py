@@ -15,18 +15,11 @@ from agents.scene_agent import SceneAgent
 from graph.session_graph import SessionGraph
 from models.commands import CommandType, StartSessionCommand, StartSessionPayload
 from models.common import MutationActionType
-from models.session import SceneGenerationProvider
 from runtime.session_runtime import SessionRuntime
+from tests.fixtures import DeterministicSceneGenerationProvider
 from tui.app import SessionApp
 
 pytestmark = pytest.mark.integration
-
-
-class DeterministicSceneGenerationProvider(SceneGenerationProvider):
-    """Deterministic scene text provider for rendering tests."""
-
-    def generate_first_scene(self, *, seed_text: str) -> str:
-        return f"FIRST SCENE :: {seed_text}"
 
 
 class SequencedMutationProposalProvider:

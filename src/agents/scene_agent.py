@@ -16,6 +16,7 @@ from pydantic import ConfigDict
 
 from config.env import get_settings
 from graph.session_graph import SessionGraph
+from graph.utils import get_scene_node, require_graph_node
 from models.common import (
     BudgetTelemetry,
     CheckStatus,
@@ -179,9 +180,9 @@ class SceneAgent:
         """Generate the next scene text for a newly accepted branch node."""
 
         event_at = generated_at or datetime.now(timezone.utc)
-        source_node = self._require_graph_node(session_graph, source_node_id)
-        target_node = self._require_graph_node(session_graph, target_node_id)
-        existing_scene_node = self._scene_node_for(session_graph, target_node_id)
+        source_node = require_graph_node(session_graph, source_node_id)
+        target_node = require_graph_node(session_graph, target_node_id)
+        existing_scene_node = get_scene_node(session_graph, target_node_id)
         seed_text = source_node.text
         generated_text = self._generation_provider().generate_first_scene(
             seed_text=seed_text
@@ -233,8 +234,8 @@ class SceneAgent:
         """Rewrite an existing scene node in place using the generation provider."""
 
         event_at = rewritten_at or datetime.now(timezone.utc)
-        graph_node = self._require_graph_node(session_graph, node_id)
-        existing_scene_node = self._scene_node_for(session_graph, node_id)
+        graph_node = require_graph_node(session_graph, node_id)
+        existing_scene_node = get_scene_node(session_graph, node_id)
         prompt_seed = graph_node.text
         if rewrite_instruction is not None:
             prompt_seed = f"{rewrite_instruction}: {prompt_seed}"
@@ -429,38 +430,6 @@ class SceneAgent:
             source_node_id=edge.source_node_id,
             target_node_id=edge.target_node_id,
         )
-
-    def _require_graph_node(
-        self, session_graph: SessionGraph, node_id: str
-    ) -> GraphNode:
-        node_data = self._node_data(session_graph, node_id)
-        if node_data is None:
-            raise ValueError(f"node '{node_id}' does not exist")
-
-        node = node_data.get("node")
-        if not isinstance(node, GraphNode):
-            raise ValueError(f"node '{node_id}' is missing graph metadata")
-
-        return node
-
-    def _node_data(
-        self, session_graph: SessionGraph, node_id: str
-    ) -> dict[str, object] | None:
-        if not session_graph.graph.has_node(node_id):
-            return None
-
-        node_data = session_graph.graph.nodes[node_id]
-        return node_data if isinstance(node_data, dict) else None
-
-    def _scene_node_for(
-        self, session_graph: SessionGraph, node_id: str
-    ) -> SceneNode | None:
-        node_data = self._node_data(session_graph, node_id)
-        if node_data is None:
-            return None
-
-        scene_node = node_data.get("scene_node")
-        return scene_node if isinstance(scene_node, SceneNode) else None
 
     def _store_scene_text(
         self,

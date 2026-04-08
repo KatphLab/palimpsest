@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
@@ -21,6 +21,7 @@ from models.common import (
     MutationEventKind,
     SafetyCheckResult,
 )
+from models.events import EventType
 from runtime.session_runtime import SessionRuntime, _RuntimeEventType
 from tests.fixtures import (
     DeterministicSceneGenerationProvider,
@@ -314,3 +315,73 @@ def test_runtime_records_mutation_skip_event_when_no_candidate_exists() -> None:
     events = runtime.runtime_event_buffer
     assert len(events) == before_count + 1
     assert events[-1].message == "mutation skipped: no activation candidate"
+
+
+def test_runtime_emits_global_consistency_event_when_interval_elapsed() -> None:
+    """Runtime should emit coherence sampling when interval gating is due."""
+
+    runtime = _build_runtime(SequencedMutationProposalProvider([]))
+    start_result = runtime.handle_command(
+        StartSessionCommand(
+            command_id="cmd-start-consistency-interval-001",
+            command_type=CommandType.START_SESSION,
+            payload=StartSessionPayload(seed_text="A brass gate hums with static."),
+        )
+    )
+
+    assert start_result.accepted is True
+    assert runtime.session is not None
+    session_id = runtime.session_id
+    assert session_id is not None
+    runtime._global_consistency_check_interval = timedelta(seconds=60)
+    assert runtime.session.coherence is not None
+    runtime.session.coherence.sampled_at = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    runtime.session.active_node_ids = []
+    runtime.session_graph.graph.clear()
+
+    decision = runtime.run_mutation_cycle()
+
+    assert decision is None
+    events = runtime.runtime_event_buffer
+    assert events[-2].event_type is EventType.COHERENCE_SAMPLED
+    assert events[-1].message == "mutation skipped: no activation candidate"
+    assert runtime.session.coherence is not None
+    assert runtime.session.coherence.sampled_at > datetime(
+        2026, 1, 1, tzinfo=timezone.utc
+    )
+
+
+def test_runtime_emits_global_consistency_event_when_burst_pending() -> None:
+    """Burst-triggered checks should run immediately and clear pending state."""
+
+    runtime = _build_runtime(SequencedMutationProposalProvider([]))
+    start_result = runtime.handle_command(
+        StartSessionCommand(
+            command_id="cmd-start-consistency-burst-001",
+            command_type=CommandType.START_SESSION,
+            payload=StartSessionPayload(seed_text="A brass gate hums with static."),
+        )
+    )
+
+    assert start_result.accepted is True
+    assert runtime.session is not None
+    session_id = runtime.session_id
+    assert session_id is not None
+    now = datetime.now(timezone.utc)
+    runtime._global_consistency_check_interval = timedelta(days=1)
+    runtime._mutation_burst_trigger_count = 1
+    runtime._mutation_burst_window = timedelta(minutes=5)
+    assert runtime.session.coherence is not None
+    runtime.session.coherence.sampled_at = now
+    runtime.session.active_node_ids = []
+    runtime.session_graph.graph.clear()
+    runtime._session_states[session_id].recent_mutation_times = [now]
+    runtime._session_states[session_id].burst_check_pending = True
+
+    decision = runtime.run_mutation_cycle()
+
+    assert decision is None
+    events = runtime.runtime_event_buffer
+    assert events[-2].event_type is EventType.COHERENCE_SAMPLED
+    assert events[-1].message == "mutation skipped: no activation candidate"
+    assert runtime._session_states[session_id].burst_check_pending is False

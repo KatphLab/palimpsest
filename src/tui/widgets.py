@@ -9,6 +9,7 @@ from textual.timer import Timer
 from textual.widgets import Static
 
 from graph.session_graph import SessionGraph
+from graph.utils import get_graph_node, get_scene_node
 from models.commands import (
     CommandResult,
     CommandType,
@@ -26,6 +27,11 @@ from models.graph import GraphNode
 from models.node import SceneNode
 from models.session import Session
 from runtime.event_log import EventLog
+from tui.constants import (
+    DEFAULT_COMPACT_TEXT_LENGTH,
+    NO_INSPECTABLE_NODE_MSG,
+    SECTION_DIVIDER,
+)
 
 __all__ = [
     "build_entropy_hotspot_lines",
@@ -37,9 +43,6 @@ __all__ = [
     "handle_lock_request",
     "handle_unlock_request",
 ]
-
-_SECTION_DIVIDER = "-" * 40
-_NO_INSPECTABLE_NODE_MSG = "No inspectable node available."
 
 
 class ShortcutFooterBar(Static):
@@ -149,12 +152,12 @@ def _command_id(prefix: str) -> str:
 
 def _section_lines(title: str) -> list[str]:
     return [
-        _SECTION_DIVIDER,
+        SECTION_DIVIDER,
         title,
     ]
 
 
-def _compact_text(text: str, *, max_length: int = 96) -> str:
+def _compact_text(text: str, *, max_length: int = DEFAULT_COMPACT_TEXT_LENGTH) -> str:
     cleaned = " ".join(text.split())
     if len(cleaned) <= max_length:
         return cleaned
@@ -286,22 +289,13 @@ def build_node_detail_lines(
         node_id=node_id,
     )
     if detail_node_id is None:
-        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
+        lines.extend([NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
-    if not session_graph.graph.has_node(detail_node_id):
-        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
-        return lines
-
-    node_data = session_graph.graph.nodes[detail_node_id]
-    if not isinstance(node_data, dict):
-        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
-        return lines
-
-    graph_node = node_data.get("node")
-    scene_node = node_data.get("scene_node")
-    if not isinstance(graph_node, GraphNode) or not isinstance(scene_node, SceneNode):
-        lines.extend([_NO_INSPECTABLE_NODE_MSG, ""])
+    graph_node = get_graph_node(session_graph, detail_node_id)
+    scene_node = get_scene_node(session_graph, detail_node_id)
+    if graph_node is None or scene_node is None:
+        lines.extend([NO_INSPECTABLE_NODE_MSG, ""])
         return lines
 
     chronology = " -> ".join(session.active_node_ids) or "unknown"

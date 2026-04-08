@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import TypedDict, cast
-
 from graph.session_graph import SessionGraph
+from graph.utils import get_graph_edge, get_node_kind, require_graph_node
 from models.common import NodeKind, RelationType
-from models.graph import GraphEdge, GraphNode
+from models.graph import GraphEdge
 from models.narrative_context import (
     NarrativeContext,
     NarrativeGraphCounters,
@@ -16,18 +14,6 @@ from models.narrative_context import (
 from models.session import Session
 
 __all__ = ["NarrativeContextBuilder"]
-
-
-class _GraphNodeRecord(TypedDict):
-    """Typed view of the graph node payload used by the builder."""
-
-    node: GraphNode
-
-
-class _GraphEdgeRecord(TypedDict):
-    """Typed view of the graph edge payload used by the builder."""
-
-    edge: GraphEdge
 
 
 class NarrativeContextBuilder:
@@ -109,7 +95,7 @@ class NarrativeContextBuilder:
 
         while current_node_id not in visited_node_ids:
             visited_node_ids.add(current_node_id)
-            graph_node = self._graph_node(session_graph, current_node_id)
+            graph_node = require_graph_node(session_graph, current_node_id)
             if graph_node.node_kind is NodeKind.SCENE:
                 scene_node_ids.append(graph_node.node_id)
 
@@ -134,7 +120,7 @@ class NarrativeContextBuilder:
         for _, _, _, edge_data in session_graph.graph.in_edges(
             node_id, keys=True, data=True
         ):
-            edge = self._graph_edge(edge_data)
+            edge = get_graph_edge(edge_data)
             if edge is None:
                 continue
 
@@ -164,35 +150,13 @@ class NarrativeContextBuilder:
     def _seed_node_id(self, session_graph: SessionGraph) -> str:
         seed_node_ids = [
             node_id
-            for node_id, node_data in session_graph.graph.nodes(data=True)
-            if self._node_kind(node_data) is NodeKind.SEED
+            for node_id in session_graph.graph.nodes
+            if get_node_kind(session_graph, node_id) is NodeKind.SEED
         ]
         if not seed_node_ids:
             raise ValueError("session graph does not contain a seed node")
 
         return sorted(seed_node_ids)[0]
 
-    def _graph_node(self, session_graph: SessionGraph, node_id: str) -> GraphNode:
-        node_data = session_graph.graph.nodes[node_id]
-        node_record = cast(_GraphNodeRecord, node_data)
-        graph_node = node_record.get("node")
-        if not isinstance(graph_node, GraphNode):
-            raise ValueError(f"node '{node_id}' is missing graph metadata")
-
-        return graph_node
-
     def _graph_node_text(self, session_graph: SessionGraph, node_id: str) -> str:
-        return self._graph_node(session_graph, node_id).text
-
-    def _graph_edge(self, edge_data: Mapping[str, object]) -> GraphEdge | None:
-        edge_record = cast(_GraphEdgeRecord, edge_data)
-        edge = edge_record.get("edge")
-        return edge if isinstance(edge, GraphEdge) else None
-
-    def _node_kind(self, node_data: Mapping[str, object]) -> NodeKind | None:
-        node_record = cast(_GraphNodeRecord, node_data)
-        graph_node = node_record.get("node")
-        if not isinstance(graph_node, GraphNode):
-            return None
-
-        return graph_node.node_kind
+        return require_graph_node(session_graph, node_id).text
