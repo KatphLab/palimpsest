@@ -39,11 +39,11 @@ _ForkLabel = Annotated[
 class GraphForkRequest(StrictBaseModel):
     """Request payload to fork a source graph at a specific edge."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    source_graph_id: str = Field(alias="sourceGraphId", min_length=1)
-    fork_edge_id: _ForkEdgeId = Field(alias="forkEdgeId")
-    custom_seed: _SeedText | None = Field(default=None, alias="customSeed")
+    source_graph_id: str = Field(min_length=1)
+    fork_edge_id: _ForkEdgeId
+    custom_seed: _SeedText | None = None
     label: _ForkLabel | None = None
 
     @field_validator("source_graph_id")
@@ -69,10 +69,10 @@ class GraphForkRequest(StrictBaseModel):
 class GraphSwitchRequest(StrictBaseModel):
     """Request payload to activate a graph in the multi-graph view."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    target_graph_id: str = Field(alias="targetGraphId", min_length=1)
-    preserve_current: bool = Field(default=True, alias="preserveCurrent")
+    target_graph_id: str = Field(min_length=1)
+    preserve_current: bool = True
 
     @field_validator("target_graph_id")
     @classmethod

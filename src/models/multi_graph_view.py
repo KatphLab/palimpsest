@@ -27,16 +27,16 @@ _SeedText = Annotated[
 class GraphSummary(StrictBaseModel):
     """Lightweight metadata representation for a graph instance."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1)
     name: _GraphName
-    node_count: int = Field(alias="nodeCount", ge=0)
-    edge_count: int = Field(alias="edgeCount", ge=0)
-    created_at: UTCDateTime = Field(alias="createdAt")
-    fork_source: str | None = Field(default=None, alias="forkSource")
-    current_state: _CurrentState = Field(alias="currentState")
-    last_modified: UTCDateTime = Field(alias="lastModified")
+    node_count: int = Field(ge=0)
+    edge_count: int = Field(ge=0)
+    created_at: UTCDateTime
+    fork_source: str | None = None
+    current_state: _CurrentState
+    last_modified: UTCDateTime
     seed: _SeedText | None = None
     labels: list[str] = Field(default_factory=list)
 

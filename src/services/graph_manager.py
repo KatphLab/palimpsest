@@ -221,11 +221,11 @@ def _apply_sort(
         return sorted(
             summaries, key=lambda summary: summary.name.casefold(), reverse=reverse
         )
-    if view_prefs.sort_by == "nodeCount":
+    if view_prefs.sort_by == "node_count":
         return sorted(
             summaries, key=lambda summary: summary.node_count, reverse=reverse
         )
-    if view_prefs.sort_by == "lastModified":
+    if view_prefs.sort_by == "last_modified":
         return sorted(
             summaries, key=lambda summary: summary.last_modified, reverse=reverse
         )

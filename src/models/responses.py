@@ -28,24 +28,24 @@ _SeedText = Annotated[
 class EdgeReference(StrictBaseModel):
     """Reference to the edge where a fork was created."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    edge_id: _EdgeIdentifier = Field(alias="edgeId")
-    source_node_id: _NodeIdentifier = Field(alias="sourceNodeId")
-    target_node_id: _NodeIdentifier = Field(alias="targetNodeId")
+    edge_id: _EdgeIdentifier
+    source_node_id: _NodeIdentifier
+    target_node_id: _NodeIdentifier
 
 
 class GraphForkResponse(StrictBaseModel):
     """Result payload returned after a successful graph fork operation."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    forked_graph_id: str = Field(alias="forkedGraphId", min_length=1)
-    fork_point: EdgeReference = Field(alias="forkPoint")
+    forked_graph_id: str = Field(min_length=1)
+    fork_point: EdgeReference
     seed: _SeedText
-    creation_time: UTCDateTime = Field(alias="creationTime")
-    parent_graph_id: str = Field(alias="parentGraphId", min_length=1)
-    graph_summary: GraphSummary = Field(alias="graphSummary")
+    creation_time: UTCDateTime
+    parent_graph_id: str = Field(min_length=1)
+    graph_summary: GraphSummary
 
     @field_validator("forked_graph_id")
     @classmethod
@@ -61,12 +61,12 @@ class GraphForkResponse(StrictBaseModel):
 class GraphSwitchResponse(StrictBaseModel):
     """Result payload returned after switching active graph context."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    previous_graph_id: str | None = Field(default=None, alias="previousGraphId")
-    current_graph_id: str = Field(alias="currentGraphId", min_length=1)
-    load_time_ms: float = Field(alias="loadTimeMs", ge=0)
-    graph_summary: GraphSummary = Field(alias="graphSummary")
+    previous_graph_id: str | None = None
+    current_graph_id: str = Field(min_length=1)
+    load_time_ms: float = Field(ge=0)
+    graph_summary: GraphSummary
 
     @field_validator("previous_graph_id")
     @classmethod

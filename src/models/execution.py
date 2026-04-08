@@ -47,16 +47,16 @@ class ExecutionStatus(StrEnum):
 class ExecutionState(StrictBaseModel):
     """Current execution state for a graph instance."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    graph_id: str = Field(alias="graphId", min_length=1)
+    graph_id: str = Field(min_length=1)
     status: ExecutionStatus
-    current_node_id: str | None = Field(default=None, alias="currentNodeId")
-    completed_nodes: int = Field(default=0, alias="completedNodes", ge=0)
-    total_nodes: int = Field(alias="totalNodes", ge=0)
+    current_node_id: str | None = None
+    completed_nodes: int = Field(default=0, ge=0)
+    total_nodes: int = Field(ge=0)
     progress: float = Field(ge=0.0, le=1.0)
-    started_at: UTCDateTime | None = Field(default=None, alias="startedAt")
-    last_activity: UTCDateTime = Field(alias="lastActivity")
+    started_at: UTCDateTime | None = None
+    last_activity: UTCDateTime
 
     @field_validator("graph_id")
     @classmethod
@@ -67,23 +67,23 @@ class ExecutionState(StrictBaseModel):
 class ParallelExecutionState(StrictBaseModel):
     """State of all active graph executions."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
     executions: list[ExecutionState] = Field(max_length=50)
-    active_count: int = Field(alias="activeCount", ge=0)
-    max_parallel: int = Field(default=10, alias="maxParallel", ge=1, le=50)
+    active_count: int = Field(ge=0)
+    max_parallel: int = Field(default=10, ge=1, le=50)
 
 
 class IsolationViolation(StrictBaseModel):
     """Report of an execution isolation breach between two graphs."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    violation_type: str = Field(alias="violationType", min_length=1)
-    source_graph_id: str = Field(alias="sourceGraphId", min_length=1)
-    affected_graph_id: str = Field(alias="affectedGraphId", min_length=1)
+    violation_type: str = Field(min_length=1)
+    source_graph_id: str = Field(min_length=1)
+    affected_graph_id: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    detected_at: UTCDateTime = Field(alias="detectedAt")
+    detected_at: UTCDateTime
 
     @field_validator("source_graph_id", "affected_graph_id")
     @classmethod
@@ -94,14 +94,12 @@ class IsolationViolation(StrictBaseModel):
 class ConflictInfo(StrictBaseModel):
     """Details about a detected optimistic-locking conflict."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    graph_id: str = Field(alias="graphId", min_length=1)
-    last_local_modified: UTCDateTime = Field(alias="lastLocalModified")
-    last_remote_modified: UTCDateTime = Field(alias="lastRemoteModified")
-    conflicting_fields: list[str] = Field(
-        alias="conflictingFields", default_factory=list
-    )
+    graph_id: str = Field(min_length=1)
+    last_local_modified: UTCDateTime
+    last_remote_modified: UTCDateTime
+    conflicting_fields: list[str] = Field(default_factory=list)
 
     @field_validator("graph_id")
     @classmethod
@@ -120,9 +118,9 @@ class ConflictResolution(StrEnum):
 class ConflictSnapshot(StrictBaseModel):
     """Typed state snapshot used during conflict detection and resolution."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    last_modified: UTCDateTime = Field(alias="lastModified")
+    last_modified: UTCDateTime
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
@@ -156,18 +154,18 @@ class ConflictHandler(ABC):
 class ExecutionStepResult(StrictBaseModel):
     """Result details emitted after one graph execution step."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    executed_node_id: str | None = Field(default=None, alias="executedNodeId")
+    executed_node_id: str | None = None
     completed: bool
 
 
 class ResourceUsage(StrictBaseModel):
     """Current resource usage and warning state for parallel execution."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    active_graphs: int = Field(alias="activeGraphs", ge=0)
-    total_memory_mb: float = Field(alias="totalMemoryMB", ge=0.0)
-    cpu_percent: float = Field(alias="cpuPercent", ge=0.0, le=100.0)
+    active_graphs: int = Field(ge=0)
+    total_memory_mb: float = Field(ge=0.0)
+    cpu_percent: float = Field(ge=0.0, le=100.0)
     warning: str | None = None

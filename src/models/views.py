@@ -18,7 +18,7 @@ _SearchQuery = Annotated[
     StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
 ]
 
-ViewSortField = Literal["createdAt", "name", "nodeCount", "lastModified"]
+ViewSortField = Literal["created_at", "name", "node_count", "last_modified"]
 ViewSortOrder = Literal["asc", "desc"]
 ViewDisplayMode = Literal["list", "grid", "tree"]
 GraphStatusFilter = Literal["active", "archived"]
@@ -27,22 +27,22 @@ GraphStatusFilter = Literal["active", "archived"]
 class ViewPreferences(StrictBaseModel):
     """User preferences for sorting and rendering multi-graph results."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    sort_by: ViewSortField = Field(default="createdAt", alias="sortBy")
-    sort_order: ViewSortOrder = Field(default="desc", alias="sortOrder")
-    display_mode: ViewDisplayMode = Field(default="list", alias="displayMode")
+    sort_by: ViewSortField = "created_at"
+    sort_order: ViewSortOrder = "desc"
+    display_mode: ViewDisplayMode = "list"
 
 
 class FilterState(StrictBaseModel):
     """Active filter criteria for querying graph summaries."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
-    search_query: _SearchQuery | None = Field(default=None, alias="searchQuery")
-    fork_source: str | None = Field(default=None, alias="forkSource")
-    created_after: UTCDateTime | None = Field(default=None, alias="createdAfter")
-    created_before: UTCDateTime | None = Field(default=None, alias="createdBefore")
+    search_query: _SearchQuery | None = None
+    fork_source: str | None = None
+    created_after: UTCDateTime | None = None
+    created_before: UTCDateTime | None = None
     status: GraphStatusFilter | None = None
 
     @field_validator("fork_source")
@@ -57,16 +57,13 @@ class FilterState(StrictBaseModel):
 class MultiGraphView(StrictBaseModel):
     """Complete state payload for the multi-graph browser view."""
 
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
 
     graphs: list[GraphSummary] = Field(max_length=1000)
-    active_graph_id: str | None = Field(default=None, alias="activeGraphId")
-    total_count: int = Field(alias="totalCount", ge=0)
+    active_graph_id: str | None = None
+    total_count: int = Field(ge=0)
     filters: FilterState = Field(default_factory=FilterState)
-    view_prefs: ViewPreferences = Field(
-        default_factory=ViewPreferences,
-        alias="viewPrefs",
-    )
+    view_prefs: ViewPreferences = Field(default_factory=ViewPreferences)
 
     @field_validator("active_graph_id")
     @classmethod
