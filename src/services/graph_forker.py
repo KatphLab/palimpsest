@@ -10,6 +10,7 @@ from uuid import uuid4
 import networkx as nx
 from pydantic import JsonValue
 
+from models.common import GraphT
 from models.errors import ForkErrorCode, GraphForkError
 from models.execution import RESOURCE_LIMITS
 from models.fork_point import ForkPoint
@@ -274,7 +275,7 @@ class GraphForker:
         return response
 
 
-def _find_edge_reference(graph: nx.DiGraph, fork_edge_id: str) -> EdgeReference | None:  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+def _find_edge_reference(graph: GraphT, fork_edge_id: str) -> EdgeReference | None:
     """Return edge node references for a fork edge identifier."""
 
     for source_node_id, target_node_id, edge_data in graph.edges(data=True):
@@ -289,10 +290,10 @@ def _find_edge_reference(graph: nx.DiGraph, fork_edge_id: str) -> EdgeReference 
 
 
 def _copy_graph_history_up_to_edge(
-    source_graph: nx.DiGraph,  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    source_graph: GraphT,
     source_node_id: str,
     target_node_id: str,
-) -> nx.DiGraph:  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+) -> GraphT:
     """Deep-copy graph history up to the selected fork edge."""
 
     history_nodes = set(nx.ancestors(source_graph, target_node_id))
@@ -300,7 +301,7 @@ def _copy_graph_history_up_to_edge(
     history_nodes.add(target_node_id)
 
     subgraph = source_graph.subgraph(history_nodes).copy()
-    copied_graph: nx.DiGraph = nx.DiGraph(subgraph)  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    copied_graph = nx.DiGraph(subgraph)
     copied_graph.graph = copy.deepcopy(source_graph.graph)
     return copy.deepcopy(copied_graph)
 
@@ -370,7 +371,7 @@ def _validate_custom_seed(custom_seed: str | None) -> GraphForkError | None:
 
 
 def _edge_participates_in_cycle(
-    graph: nx.DiGraph,  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    graph: GraphT,
     edge_reference: EdgeReference,
 ) -> bool:
     """Return ``True`` when an edge is part of a directed cycle."""
@@ -383,7 +384,7 @@ def _edge_participates_in_cycle(
 
 
 def _validate_transition_coherence(
-    graph: nx.DiGraph,  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    graph: GraphT,
     edge_reference: EdgeReference,
 ) -> str | None:
     """Validate coherence threshold for the selected narrative transition."""

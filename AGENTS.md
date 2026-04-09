@@ -97,8 +97,9 @@ uv run pytest
 - Name test files `test_<module>.py` and test functions `test_<behavior>()`
 
 ## Active Technologies
-- Python 3.12+ + NetworkX (graph data structure), LangGraph (agent orchestration), Pydantic (typed schemas), pytest (testing) (002-graph-forking)
-- File-based persistence (JSON-serialized graph states per Constitution privacy baseline) (002-graph-forking)
+- Python 3.12+ + Textual (TUI), NetworkX (graph model), LangGraph (agent orchestration), Pydantic (typed contracts), pytest (verification)
+- File-based persistence (JSON-serialized graph states per Constitution privacy baseline)
+- Session-scoped in-memory runtime state with JSON serialization via existing graph persistence components
 
 ## Recent Changes
 - 002-graph-forking: Added Python 3.12+ + NetworkX (graph data structure), LangGraph (agent orchestration), Pydantic (typed schemas), pytest (testing)

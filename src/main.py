@@ -6,7 +6,6 @@ import argparse
 import logging
 from collections.abc import Sequence
 
-from config.env import get_settings
 from config.logging_config import setup_logging
 from runtime.session_runtime import SessionRuntime
 from tui.app import SessionApp
@@ -35,10 +34,6 @@ def run_textual_mode(runtime: SessionRuntime) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the runtime entry point."""
 
-    # Load settings (automatically loads .env file via pydantic-settings)
-    _ = get_settings()
-
-    # Setup logging
     setup_logging()
 
     parser = build_parser()

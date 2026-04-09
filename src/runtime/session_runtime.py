@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from threading import Lock
+from time import perf_counter
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
@@ -43,7 +44,9 @@ from models.commands import (
     UnlockEdgeCommand,
 )
 from models.common import (
+    BudgetTelemetry,
     CheckStatus,
+    CoherenceSnapshot,
     DriftCategory,
     EventOutcome,
     MutationActionType,
@@ -52,12 +55,21 @@ from models.common import (
     SafetyCheckResult,
     SessionStatus,
     StrictBaseModel,
+    TerminationVoteState,
     UTCDateTime,
 )
 from models.events import EventType, MutationStreamEvent, SessionEvent
+from models.execution import ExecutionStatus
 from models.graph import GraphEdge, GraphNode
+from models.graph_session import GraphSession
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
+from models.requests import (
+    ForkFromCurrentNodeRequest,
+    GraphNavigationDirection,
+    GraphSwitchRequest,
+)
+from models.responses import MultiGraphStatusSnapshot, RunningState
 from models.session import Session
 from runtime.consistency import (
     ConsistencyGuardrailState,
@@ -68,6 +80,7 @@ from runtime.consistency import (
 )
 from runtime.event_log import EventLog
 from runtime.exporter import build_export_artifact, write_export_artifact
+from runtime.graph_registry import GraphNotFoundError, GraphRegistry, NoActiveGraphError
 from utils.time import utc_now
 
 __all__ = ["SessionRuntime"]
@@ -181,6 +194,7 @@ class _RuntimeEventType(StrEnum):
     LOCK_EDGE = "lock_edge"
     UNLOCK_EDGE = "unlock_edge"
     FORK_SESSION = "fork_session"
+    GRAPH_SWITCH = "graph_switch"
 
 
 class _RuntimeEvent(StrictBaseModel):
@@ -258,6 +272,24 @@ def _seal_runtime_mutation_cycle(session_graph: SessionGraph) -> None:
         session_graph.graph.graph[_RUNTIME_MUTATION_RESOLVED_KEY] = True
 
 
+def _execution_status_from_session_status(status: SessionStatus) -> ExecutionStatus:
+    """Map runtime session status to GraphSession execution status."""
+
+    if status is SessionStatus.RUNNING:
+        return ExecutionStatus.RUNNING
+
+    if status is SessionStatus.PAUSED:
+        return ExecutionStatus.PAUSED
+
+    if status is SessionStatus.FAILED:
+        return ExecutionStatus.FAILED
+
+    if status in {SessionStatus.TERMINATING, SessionStatus.TERMINATED}:
+        return ExecutionStatus.COMPLETED
+
+    return ExecutionStatus.IDLE
+
+
 class SessionRuntime:
     """Own the mutable session graph and route commands into handlers."""
 
@@ -267,6 +299,7 @@ class SessionRuntime:
         *,
         scene_agent: SceneAgent | None = None,
         mutation_proposer: LLMMutationProposer | None = None,
+        graph_registry: GraphRegistry | None = None,
     ) -> None:
         _install_session_graph_mutation_hooks()
         self.session_graph = session_graph or SessionGraph()
@@ -298,6 +331,9 @@ class SessionRuntime:
         self._global_mutation_storm_threshold = _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD
         self._global_consistency_check_interval = (
             _RUNTIME_GLOBAL_CONSISTENCY_CHECK_INTERVAL
+        )
+        self.graph_registry = (
+            graph_registry if graph_registry is not None else GraphRegistry()
         )
 
     @property
@@ -407,6 +443,7 @@ class SessionRuntime:
                 target_ids=list(self.session.active_node_ids),
                 actor_id="session-runtime",
             )
+            self._synchronize_active_graph_session(create_if_missing=True)
             self.state_version = 1
 
             LOGGER.info("started session %s", session_id)
@@ -419,6 +456,7 @@ class SessionRuntime:
 
             self.session.status = SessionStatus.PAUSED
             self.session.updated_at = utc_now()
+            self._synchronize_active_graph_session(create_if_missing=True)
             LOGGER.info("paused session %s", self.session_id)
             return self._build_result(command.command_id, "pause_session accepted")
 
@@ -444,6 +482,7 @@ class SessionRuntime:
 
             self.session.status = SessionStatus.RUNNING
             self.session.updated_at = utc_now()
+            self._synchronize_active_graph_session(create_if_missing=True)
             self.state_version += 1
             LOGGER.info("resumed session %s", self.session_id)
             return self._build_result(command.command_id, "resume_session accepted")
@@ -703,7 +742,9 @@ class SessionRuntime:
         """Execute one autonomous mutation cycle for the active session."""
 
         with self._lock:
-            return self._run_mutation_cycle_locked()
+            decision = self._run_mutation_cycle_locked()
+            self._synchronize_active_graph_session(create_if_missing=True)
+            return decision
 
     def advance_session_cycle(self) -> MutationDecision | None:
         """Advance one manual session step by refreshing state and mutating once."""
@@ -720,7 +761,48 @@ class SessionRuntime:
                 self.session_graph,
                 refreshed_at=utc_now(),
             )
-            return self._run_mutation_cycle_locked()
+            decision = self._run_mutation_cycle_locked()
+            self._synchronize_active_graph_session(create_if_missing=True)
+            return decision
+
+    def _synchronize_active_graph_session(self, *, create_if_missing: bool) -> None:
+        """Mirror active runtime session state into the graph registry."""
+
+        if self.session is None or self.session_id is None:
+            return
+
+        graph_id = str(self.session_id)
+        current_node_id = (
+            self.session.active_node_ids[-1] if self.session.active_node_ids else None
+        )
+        execution_status = _execution_status_from_session_status(self.session.status)
+        now = utc_now()
+
+        try:
+            active_graph = self.graph_registry.get_session(graph_id)
+        except GraphNotFoundError:
+            if not create_if_missing:
+                return
+
+            self.graph_registry.register_session(
+                GraphSession(
+                    graph_id=graph_id,
+                    current_node_id=current_node_id,
+                    execution_status=execution_status,
+                    is_active=False,
+                    last_activity_at=now,
+                )
+            )
+            return
+
+        updated_graph = active_graph.model_copy(
+            update={
+                "current_node_id": current_node_id,
+                "execution_status": execution_status,
+                "last_activity_at": now,
+            }
+        )
+        self.graph_registry.update_session(updated_graph)
 
     def _build_result(self, command_id: str, message: str) -> CommandResult:
         return CommandResult(
@@ -1173,6 +1255,360 @@ class SessionRuntime:
         self.session = session_state.session
         self.session_graph = session_state.session_graph
 
+    def get_active_graph_session(self) -> GraphSession | None:
+        """Return the currently active GraphSession from the registry.
+
+        Returns:
+            Defensive copy of the active GraphSession, or None if no active graph.
+        """
+        try:
+            return self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return None
+
+    def register_graph_session(self, session: GraphSession) -> GraphSession:
+        """Register a GraphSession in the multi-graph registry.
+
+        Args:
+            session: The GraphSession to register.
+
+        Returns:
+            Defensive copy of the registered session.
+        """
+        return self.graph_registry.register_session(session)
+
+    def switch_to_next_graph(self) -> GraphSession:
+        """Switch to the next graph in cyclic order (Tab navigation).
+
+        Returns:
+            Defensive copy of the newly active session.
+
+        Raises:
+            NoActiveGraphError: If no graphs are registered.
+        """
+        start_time = perf_counter()
+        previous_graph_id = self._active_graph_id_or_none()
+        switched_session = self.graph_registry.switch_to_next()
+        self._activate_session(UUID(switched_session.graph_id))
+        elapsed_ms = (perf_counter() - start_time) * 1000
+        self._record_graph_switch_event(
+            direction=GraphNavigationDirection.NEXT,
+            previous_graph_id=previous_graph_id,
+            active_graph_id=switched_session.graph_id,
+            elapsed_ms=elapsed_ms,
+        )
+        LOGGER.info(
+            "graph switch next completed in %.2f ms (%s -> %s)",
+            elapsed_ms,
+            previous_graph_id or "none",
+            switched_session.graph_id,
+        )
+        return switched_session
+
+    def switch_to_previous_graph(self) -> GraphSession:
+        """Switch to the previous graph in cyclic order (Shift+Tab navigation).
+
+        Returns:
+            Defensive copy of the newly active session.
+
+        Raises:
+            NoActiveGraphError: If no graphs are registered.
+        """
+        start_time = perf_counter()
+        previous_graph_id = self._active_graph_id_or_none()
+        switched_session = self.graph_registry.switch_to_previous()
+        self._activate_session(UUID(switched_session.graph_id))
+        elapsed_ms = (perf_counter() - start_time) * 1000
+        self._record_graph_switch_event(
+            direction=GraphNavigationDirection.PREVIOUS,
+            previous_graph_id=previous_graph_id,
+            active_graph_id=switched_session.graph_id,
+            elapsed_ms=elapsed_ms,
+        )
+        LOGGER.info(
+            "graph switch previous completed in %.2f ms (%s -> %s)",
+            elapsed_ms,
+            previous_graph_id or "none",
+            switched_session.graph_id,
+        )
+        return switched_session
+
+    def remove_graph_session(self, graph_id: str) -> None:
+        """Remove a graph session and preserve valid active-graph context."""
+
+        self.graph_registry.remove_session(graph_id)
+        remaining = self.graph_registry.get_session_count()
+        LOGGER.info(
+            "removed graph session %s (remaining_graphs=%d)",
+            graph_id,
+            remaining,
+        )
+
+    def get_multi_graph_status_snapshot(self) -> MultiGraphStatusSnapshot:
+        """Get a status snapshot for TUI multi-graph rendering.
+
+        Returns:
+            MultiGraphStatusSnapshot with active position, total graphs,
+            and active running state. Returns idle state when no graphs exist.
+        """
+        total = self.graph_registry.get_session_count()
+        if total == 0:
+            return MultiGraphStatusSnapshot(
+                active_position=1,
+                total_graphs=0,
+                active_running_state=RunningState.IDLE,
+            )
+
+        try:
+            active_session = self.graph_registry.get_active_session()
+            active_index = self.graph_registry.get_active_index()
+            return MultiGraphStatusSnapshot(
+                active_position=active_index + 1,  # 1-based for display
+                total_graphs=total,
+                active_running_state=RunningState(
+                    active_session.execution_status.value
+                ),
+            )
+        except NoActiveGraphError:
+            return MultiGraphStatusSnapshot(
+                active_position=1,
+                total_graphs=total,
+                active_running_state=RunningState.IDLE,
+            )
+
+    def create_fork_request(
+        self, seed: str | None = None
+    ) -> ForkFromCurrentNodeRequest | None:
+        """Create a ForkFromCurrentNodeRequest from the active graph context.
+
+        Args:
+            seed: Optional user-provided seed value.
+
+        Returns:
+            ForkFromCurrentNodeRequest if active graph exists with current node,
+            None otherwise.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return None
+
+        if active_session.current_node_id is None:
+            return None
+
+        return ForkFromCurrentNodeRequest(
+            active_graph_id=active_session.graph_id,
+            current_node_id=active_session.current_node_id,
+            seed=seed,
+        )
+
+    def create_graph_switch_request(
+        self, direction: GraphNavigationDirection
+    ) -> GraphSwitchRequest | None:
+        """Create a GraphSwitchRequest for navigation.
+
+        Args:
+            direction: Navigation direction (NEXT or PREVIOUS).
+
+        Returns:
+            GraphSwitchRequest if there are multiple graphs to switch between,
+            None if there's only one or zero graphs.
+        """
+        total = self.graph_registry.get_session_count()
+        if total < 2:
+            return None
+
+        try:
+            sessions = self.graph_registry.list_sessions()
+            active_index = self.graph_registry.get_active_index()
+        except NoActiveGraphError:
+            return None
+
+        # Calculate target index based on direction
+        if direction == GraphNavigationDirection.NEXT:
+            target_index = (active_index + 1) % total
+        else:
+            target_index = (active_index - 1) % total
+
+        target_session = sessions[target_index]
+
+        return GraphSwitchRequest(
+            target_graph_id=target_session.graph_id,
+            direction=direction,
+            preserve_current=True,
+        )
+
+    def update_current_node_id(self, node_id: str) -> bool:
+        """Update the current_node_id for the active graph session.
+
+        Args:
+            node_id: The new current node ID.
+
+        Returns:
+            True if update succeeded, False if no active graph.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return False
+
+        updated_session = active_session.model_copy(
+            update={"current_node_id": node_id, "last_activity_at": utc_now()}
+        )
+        self.graph_registry.update_session(updated_session)
+        return True
+
+    def update_execution_status(self, status: ExecutionStatus) -> bool:
+        """Update the execution_status for the active graph session.
+
+        Args:
+            status: The new execution status.
+
+        Returns:
+            True if update succeeded, False if no active graph.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return False
+
+        updated_session = active_session.model_copy(
+            update={"execution_status": status, "last_activity_at": utc_now()}
+        )
+        self.graph_registry.update_session(updated_session)
+        return True
+
+    @property
+    def graph_count(self) -> int:
+        """Return the number of registered graph sessions."""
+        return self.graph_registry.get_session_count()
+
+    @property
+    def active_graph_index(self) -> int:
+        """Return the current active graph index (0-based)."""
+        return self.graph_registry.get_active_index()
+
+    def fork_from_current_node(
+        self,
+        fork_request: "ForkFromCurrentNodeRequest",
+    ) -> "GraphSession | None":
+        """Create a fork from the current node and set it as active.
+
+        Args:
+            fork_request: The validated fork request containing active_graph_id,
+                        current_node_id, and optional seed.
+
+        Returns:
+            The newly created GraphSession if successful, None otherwise.
+        """
+
+        start_time = perf_counter()
+
+        try:
+            # Verify source session exists
+            self.graph_registry.get_session(fork_request.active_graph_id)
+        except Exception as error:
+            LOGGER.warning("Failed to get source session for fork: %s", error)
+            return None
+
+        # Generate new graph ID (keep as UUID for session state key)
+        forked_session_id = uuid4()
+        forked_graph_id = str(forked_session_id)
+        now = utc_now()
+
+        # Create the forked session
+        forked_session = GraphSession(
+            graph_id=forked_graph_id,
+            current_node_id=fork_request.current_node_id,
+            execution_status=ExecutionStatus.RUNNING,
+            is_active=False,  # Will be set active after registration
+            last_activity_at=now,
+        )
+
+        # Register the new session (appends to registry) - T024
+        self.graph_registry.register_session(forked_session)
+
+        # Also add to _session_states so switching works properly
+        forked_graph = copy.deepcopy(self.session_graph)
+        self._retarget_graph_session_ids(forked_graph, forked_session_id)
+        _mark_runtime_mutation_graph(forked_graph)
+        _reset_runtime_mutation_cycle(forked_graph)
+        # Create required telemetry for running session
+        forked_coherence = CoherenceSnapshot(
+            global_score=0.5,
+            local_scores=[],
+            global_check_status=CheckStatus.PASS,
+            sampled_at=now,
+            checked_by="fork_from_current_node",
+        )
+        forked_budget = BudgetTelemetry(
+            estimated_cost_usd=Decimal("0.0"),
+            budget_limit_usd=Decimal("5.00"),
+            token_input_count=0,
+            token_output_count=0,
+            model_call_count=0,
+        )
+        forked_termination = TerminationVoteState(
+            active_node_count=1,
+            votes_for_termination=0,
+            votes_against_termination=0,
+            majority_threshold=0.51,
+            termination_reached=False,
+            last_updated_at=now,
+        )
+
+        self._session_states[forked_session_id] = _RuntimeSessionState(
+            session=Session(
+                session_id=forked_session_id,
+                status=SessionStatus.RUNNING,
+                seed_text=fork_request.seed or "",
+                graph_version=0,
+                active_node_ids=[fork_request.current_node_id]
+                if fork_request.current_node_id
+                else [],
+                created_at=now,
+                updated_at=now,
+                parent_session_id=UUID(fork_request.active_graph_id)
+                if fork_request.active_graph_id
+                else None,
+                coherence=forked_coherence,
+                budget=forked_budget,
+                termination=forked_termination,
+            ),
+            session_graph=forked_graph,
+            event_log=EventLog(
+                session_id=forked_session_id, latest_sequence=0, events=[]
+            ),
+        )
+
+        # Set the forked session as active - T025
+        active_session = self.graph_registry.set_active_session(forked_graph_id)
+
+        # Calculate timing
+        elapsed_ms = (perf_counter() - start_time) * 1000
+
+        # Log the fork operation - T028, T056
+        # Use the parent graph ID as session_id if no active session exists
+        event_session_id = self.session_id or UUID(fork_request.active_graph_id)
+        self._append_runtime_event(
+            event_type=_RuntimeEventType.FORK_SESSION,
+            command_id=f"fork-from-node-{forked_graph_id[:8]}",
+            session_id=event_session_id,
+            message=f"Fork created from node {fork_request.current_node_id} with seed {fork_request.seed!r} [{elapsed_ms:.2f}ms]",
+            forked_session_id=UUID(forked_graph_id),
+            parent_session_id=UUID(fork_request.active_graph_id),
+        )
+
+        LOGGER.info(
+            "Forked graph %s from %s at node %s in %.2f ms",
+            forked_graph_id,
+            fork_request.active_graph_id,
+            fork_request.current_node_id,
+            elapsed_ms,
+        )
+
+        return active_session
+
     def _append_runtime_event(
         self,
         *,
@@ -1201,6 +1637,44 @@ class SessionRuntime:
         )
         self._runtime_event_buffer.append(runtime_event)
         self._mirror_runtime_event_to_event_log(runtime_event)
+
+    def _active_graph_id_or_none(self) -> str | None:
+        """Return the active graph identifier when one exists."""
+
+        try:
+            return self.graph_registry.get_active_session().graph_id
+        except NoActiveGraphError:
+            return None
+
+    def _record_graph_switch_event(
+        self,
+        *,
+        direction: GraphNavigationDirection,
+        previous_graph_id: str | None,
+        active_graph_id: str,
+        elapsed_ms: float = 0.0,
+    ) -> None:
+        """Emit structured logs/events for graph switch operations."""
+
+        status = self.get_multi_graph_status_snapshot()
+        message = (
+            f"graph switch {direction.value}: "
+            f"{previous_graph_id or 'none'} -> {active_graph_id} "
+            f"({status.active_position}/{status.total_graphs}) "
+            f"[{elapsed_ms:.2f}ms]"
+        )
+        LOGGER.info(message)
+
+        event_session_id = self.session_id
+        if event_session_id is None:
+            event_session_id = UUID(active_graph_id)
+
+        self._append_runtime_event(
+            event_type=_RuntimeEventType.GRAPH_SWITCH,
+            command_id=f"graph-switch-{direction.value}-{active_graph_id[:8]}",
+            session_id=event_session_id,
+            message=message,
+        )
 
     def _append_mutation_lifecycle_event(
         self,
@@ -1312,6 +1786,12 @@ class SessionRuntime:
 
         if event_type is _RuntimeEventType.UNLOCK_EDGE:
             return EventType.EDGE_UNLOCKED, None
+
+        if event_type is _RuntimeEventType.FORK_SESSION:
+            return EventType.SESSION_RESUMED, None
+
+        if event_type is _RuntimeEventType.GRAPH_SWITCH:
+            return EventType.SESSION_RESUMED, None
 
         if event_type is MutationEventKind.PROPOSED:
             return EventType.MUTATION_PROPOSED, None

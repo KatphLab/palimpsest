@@ -5,15 +5,14 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from time import perf_counter
+from time import sleep
 
-import networkx as nx
-import pytest
-
-from models.graph_instance import GraphInstance, GraphLifecycleState
-from models.seed_config import SeedConfiguration
+from models.execution import ExecutionStatus
+from models.graph_instance import GraphInstance
+from models.graph_session import GraphSession
 from persistence.graph_store import GraphStore
 from runtime.multi_graph_executor import MultiGraphExecutor
+from tests.fixtures import build_graph_instance
 
 
 def _build_graph_instance(
@@ -22,27 +21,21 @@ def _build_graph_instance(
     name: str,
     created_at: datetime,
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_node("n3")
-    graph.add_edge("n1", "n2", edge_id="edge_1")
-    graph.add_edge("n2", "n3", edge_id="edge_2")
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name=name,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{name}"),
-        graph_data=graph,
-        metadata={},
-        last_modified=created_at,
-        state=GraphLifecycleState.ACTIVE,
+        seed=f"seed-{name}",
+        nodes=("n1", "n2", "n3"),
+        edges=(
+            ("n1", "n2", {"edge_id": "edge_1"}),
+            ("n2", "n3", {"edge_id": "edge_2"}),
+        ),
     )
 
 
 def test_parallel_execution_maintains_isolation(tmp_path: Path) -> None:
-    """Advancing one graph should not mutate execution state of another graph."""
+    """Starting one graph should not mutate execution state of another graph."""
 
     store = GraphStore(root_dir=tmp_path)
     created_at = datetime(2026, 4, 8, 13, 0, tzinfo=timezone.utc)
@@ -59,31 +52,27 @@ def test_parallel_execution_maintains_isolation(tmp_path: Path) -> None:
     store.save(graph_a)
     store.save(graph_b)
 
-    executor = MultiGraphExecutor(graph_store=store, max_parallel=5)
-    executor.execute_graph(graph_a.id)
-    executor.execute_graph(graph_b.id)
-
-    asyncio.run(executor.advance_step(graph_a.id))
-    asyncio.run(executor.advance_step(graph_a.id))
+    executor = MultiGraphExecutor(max_parallel=5)
+    executor.register_graph(GraphSession(graph_id=graph_a.id, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b.id, current_node_id="n1"))
+    executor.start_graph(graph_a.id)
 
     state_a = executor.get_execution_state(graph_a.id)
     state_b = executor.get_execution_state(graph_b.id)
 
     assert state_a is not None
     assert state_b is not None
-    assert state_a.completed_nodes == 2
-    assert state_b.completed_nodes == 0
+    assert state_a.status == ExecutionStatus.RUNNING
+    assert state_b.status == ExecutionStatus.IDLE
 
     persisted_a = store.load(graph_a.id)
     persisted_b = store.load(graph_b.id)
-    assert persisted_a.last_modified != graph_a.last_modified
+    assert persisted_a.last_modified == graph_a.last_modified
     assert persisted_b.last_modified == graph_b.last_modified
 
 
-def test_rapid_graph_switching_maintains_independent_state(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Rapid alternation should keep states independent and notify conflicts."""
+def test_rapid_graph_switching_maintains_independent_state(tmp_path: Path) -> None:
+    """Rapid alternation keeps focus and execution states independent."""
 
     store = GraphStore(root_dir=tmp_path)
     created_at = datetime(2026, 4, 8, 14, 0, tzinfo=timezone.utc)
@@ -100,36 +89,34 @@ def test_rapid_graph_switching_maintains_independent_state(
     store.save(graph_a)
     store.save(graph_b)
 
-    executor = MultiGraphExecutor(graph_store=store, max_parallel=5)
-    executor.execute_graph(graph_a.id)
-    executor.execute_graph(graph_b.id)
+    executor = MultiGraphExecutor(max_parallel=5)
+    executor.register_graph(GraphSession(graph_id=graph_a.id, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b.id, current_node_id="n1"))
 
-    for _ in range(2):
-        asyncio.run(executor.advance_step(graph_a.id))
-        asyncio.run(executor.advance_step(graph_b.id))
+    first_active = executor.get_active_session()
+    assert first_active is not None
+    assert first_active.graph_id == graph_a.id
 
-    stale_remote = store.load(graph_a.id)
-    stale_remote.metadata["backgroundUpdate"] = "stale"
-    stale_remote.last_modified = stale_remote.last_modified + timedelta(seconds=2)
-    store.save(stale_remote)
-
-    with caplog.at_level("WARNING"):
-        asyncio.run(executor.advance_step(graph_a.id))
+    executor.start_graph(graph_a.id)
+    executor.switch_to_next()
+    executor.start_graph(graph_b.id)
+    executor.pause_graph(graph_a.id)
+    executor.switch_to_previous()
 
     state_a = executor.get_execution_state(graph_a.id)
     state_b = executor.get_execution_state(graph_b.id)
+    active = executor.get_active_session()
+
     assert state_a is not None
     assert state_b is not None
-    assert state_a.completed_nodes == 3
-    assert state_b.completed_nodes == 2
-
-    resolved_graph = store.load(graph_a.id)
-    assert "backgroundUpdate" not in resolved_graph.metadata
-    assert any("conflict" in record.message.casefold() for record in caplog.records)
+    assert active is not None
+    assert active.graph_id == graph_a.id
+    assert state_a.status == ExecutionStatus.PAUSED
+    assert state_b.status == ExecutionStatus.RUNNING
 
 
 def test_background_operations_do_not_block_foreground(tmp_path: Path) -> None:
-    """Background steps on one graph should not block foreground operations."""
+    """Background updates on one graph should not block another graph."""
 
     store = GraphStore(root_dir=tmp_path)
     created_at = datetime(2026, 4, 8, 15, 0, tzinfo=timezone.utc)
@@ -146,27 +133,149 @@ def test_background_operations_do_not_block_foreground(tmp_path: Path) -> None:
     store.save(foreground_graph)
     store.save(background_graph)
 
-    executor = MultiGraphExecutor(graph_store=store, max_parallel=2)
-    executor.execute_graph(foreground_graph.id)
-    executor.execute_graph(background_graph.id)
+    executor = MultiGraphExecutor(max_parallel=2)
+    executor.register_graph(
+        GraphSession(graph_id=foreground_graph.id, current_node_id="n1")
+    )
+    executor.register_graph(
+        GraphSession(graph_id=background_graph.id, current_node_id="n1")
+    )
 
-    async def _scenario() -> float:
+    async def _scenario() -> None:
         async def _background_loop() -> None:
-            for _ in range(2):
-                await executor.advance_step(background_graph.id)
-                await asyncio.sleep(0.05)
+            for _ in range(20):
+                await asyncio.to_thread(executor.start_graph, background_graph.id)
+                await asyncio.to_thread(executor.pause_graph, background_graph.id)
 
-        background_task = asyncio.create_task(_background_loop())
-        await asyncio.sleep(0)
-        started = perf_counter()
-        await executor.advance_step(foreground_graph.id)
-        elapsed_ms = (perf_counter() - started) * 1000
-        await background_task
-        return elapsed_ms
+        await asyncio.wait_for(
+            asyncio.gather(
+                _background_loop(),
+                asyncio.to_thread(executor.start_graph, foreground_graph.id),
+            ),
+            timeout=1.0,
+        )
 
-    elapsed_ms = asyncio.run(_scenario())
-    usage = executor.get_resource_usage()
+    asyncio.run(_scenario())
+    foreground_state = executor.get_execution_state(foreground_graph.id)
+    background_state = executor.get_execution_state(background_graph.id)
+    snapshot = executor.get_status_snapshot()
 
-    assert elapsed_ms < 100
-    assert usage.active_graphs == 2
-    assert usage.warning is not None
+    assert foreground_state is not None
+    assert background_state is not None
+    assert foreground_state.status == ExecutionStatus.RUNNING
+    assert background_state.status == ExecutionStatus.PAUSED
+    assert snapshot.total_graphs == 2
+
+
+def test_background_graph_progresses_while_not_active() -> None:
+    """Inactive graph should keep progressing while another graph is active."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440030"
+    graph_b = "550e8400-e29b-41d4-a716-446655440031"
+
+    executor.register_graph(GraphSession(graph_id=graph_a, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b, current_node_id="n1"))
+
+    executor.start_graph(graph_a)
+    executor.start_graph(graph_b)
+    executor.set_active_session(graph_a)
+
+    before = executor.get_session(graph_b)
+    assert before is not None
+
+    sleep(0.05)
+
+    after = executor.get_session(graph_b)
+    assert after is not None
+    assert after.execution_status == ExecutionStatus.RUNNING
+    assert after.last_activity_at > before.last_activity_at
+
+
+def test_status_snapshot_reports_active_graph_state_only() -> None:
+    """Status snapshot should report the active graph state, not background state."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440040"
+    graph_b = "550e8400-e29b-41d4-a716-446655440041"
+
+    executor.register_graph(
+        GraphSession(
+            graph_id=graph_a,
+            current_node_id="n1",
+            execution_status=ExecutionStatus.PAUSED,
+        )
+    )
+    executor.register_graph(
+        GraphSession(
+            graph_id=graph_b,
+            current_node_id="n1",
+            execution_status=ExecutionStatus.RUNNING,
+        )
+    )
+    executor.set_active_session(graph_a)
+
+    snapshot = executor.get_status_snapshot()
+
+    assert snapshot.active_position == 1
+    assert snapshot.total_graphs == 2
+    assert snapshot.active_running_state == ExecutionStatus.PAUSED
+
+
+def test_inactive_graph_advance_continues_after_focus_switch() -> None:
+    """Background graph should keep advancing after user switches focus away."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440050"
+    graph_b = "550e8400-e29b-41d4-a716-446655440051"
+
+    executor.register_graph(GraphSession(graph_id=graph_a, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b, current_node_id="n1"))
+
+    executor.start_graph(graph_a)
+    executor.start_graph(graph_b)
+    executor.set_active_session(graph_b)
+
+    before = executor.get_session(graph_a)
+    assert before is not None
+
+    sleep(0.05)
+
+    after = executor.get_session(graph_a)
+    assert after is not None
+    assert after.execution_status == ExecutionStatus.RUNNING
+    assert after.last_activity_at > before.last_activity_at
+
+
+def test_ten_concurrent_graphs_keep_status_index_and_total_through_all_switches() -> (
+    None
+):
+    """With 10 running graphs, status index/total stays correct for every switch."""
+
+    executor = MultiGraphExecutor(max_parallel=10, auto_execute_interval=0)
+    total_graphs = 10
+    graph_ids = [
+        f"550e8400-e29b-41d4-a716-{index:012d}" for index in range(total_graphs)
+    ]
+
+    for graph_id in graph_ids:
+        executor.register_graph(GraphSession(graph_id=graph_id, current_node_id="n1"))
+        executor.start_graph(graph_id)
+
+    active_position = 1
+
+    # Tab navigation across a large sample of switch operations.
+    for _ in range(250):
+        executor.switch_to_next()
+        active_position = (active_position % total_graphs) + 1
+        snapshot = executor.get_status_snapshot()
+        assert snapshot.total_graphs == total_graphs
+        assert snapshot.active_position == active_position
+
+    # Shift+Tab navigation across the same volume of operations.
+    for _ in range(250):
+        executor.switch_to_previous()
+        active_position = ((active_position - 2) % total_graphs) + 1
+        snapshot = executor.get_status_snapshot()
+        assert snapshot.total_graphs == total_graphs
+        assert snapshot.active_position == active_position

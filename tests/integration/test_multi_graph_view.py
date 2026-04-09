@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from importlib import import_module
 from pathlib import Path
 from time import perf_counter
 
-import networkx as nx
+import pytest
 
 from models.graph_instance import GraphInstance, GraphLifecycleState
 from models.requests import GraphSwitchRequest
-from models.seed_config import SeedConfiguration
 from models.views import FilterState, ViewPreferences
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.graph_manager import GraphManager
 from services.graph_switcher import GraphSwitcher
+from tests.fixtures import build_graph_instance
 
 
 def _build_graph_instance(
@@ -25,19 +26,11 @@ def _build_graph_instance(
     created_at: datetime,
     state: GraphLifecycleState = GraphLifecycleState.ACTIVE,
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_edge("n1", "n2", edge_id="edge_1")
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name=name,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{name}"),
-        graph_data=graph,
-        metadata={},
-        last_modified=created_at,
+        seed=f"seed-{name}",
         state=state,
     )
 
@@ -135,3 +128,29 @@ def test_multi_graph_view_performance_under_200ms_for_50_graphs(tmp_path: Path) 
 
     assert len(view.graphs) == 50
     assert elapsed_ms < 200
+
+
+def test_tui_only_startup_workflow_blocks_legacy_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Startup should run through main TUI entrypoint and disable legacy CLI startup."""
+
+    main_module = import_module("main")
+    runtime = object()
+    launches = {"count": 0}
+
+    monkeypatch.setattr(main_module, "SessionRuntime", lambda: runtime)
+    monkeypatch.setattr(main_module, "setup_logging", lambda: None)
+
+    def _run_textual_mode(incoming_runtime: object) -> int:
+        assert incoming_runtime is runtime
+        launches["count"] += 1
+        return 0
+
+    monkeypatch.setattr(main_module, "run_textual_mode", _run_textual_mode)
+
+    assert main_module.main([]) == 0
+    assert launches["count"] == 1
+
+    with pytest.raises(ModuleNotFoundError, match="No module named 'cli'"):
+        import_module("cli.main")

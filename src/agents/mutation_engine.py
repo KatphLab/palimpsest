@@ -6,27 +6,17 @@ import logging
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import ConfigDict, Field
 
 from graph.session_graph import SessionGraph
-from models.common import NodeKind, StrictBaseModel, UTCDateTime
+from models.common import NodeKind, UTCDateTime
+from models.graph import GraphNode
+from models.mutation import ProposerStateModel
 from models.session import Session
 from utils.time import utc_now
 
 __all__ = ["MutationEngine"]
 
 LOGGER = logging.getLogger(__name__)
-
-
-class _ProposerStateModel(StrictBaseModel):
-    """State carried through the mutation proposer subgraph."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
-
-    session: Session
-    session_graph: SessionGraph
-    activated_at: UTCDateTime
-    activation_candidate_id: str | None = Field(default=None)
 
 
 class MutationEngine:
@@ -36,12 +26,12 @@ class MutationEngine:
         self._proposer_graph = self._build_proposer_graph()
 
     @property
-    def proposer_graph(self) -> CompiledStateGraph[_ProposerStateModel]:
+    def proposer_graph(self) -> CompiledStateGraph[ProposerStateModel]:
         """Return the compiled proposer graph."""
 
         return self._proposer_graph
 
-    def build_proposer_subgraph(self) -> CompiledStateGraph[_ProposerStateModel]:
+    def build_proposer_subgraph(self) -> CompiledStateGraph[ProposerStateModel]:
         """Return the compiled proposer graph."""
 
         return self._proposer_graph
@@ -56,21 +46,21 @@ class MutationEngine:
         """Run the proposer subgraph and return a single activation candidate."""
 
         event_at = activated_at or utc_now()
-        initial_state = _ProposerStateModel(
+        initial_state = ProposerStateModel(
             session=session,
             session_graph=session_graph,
             activated_at=event_at,
         )
-        final_state = _ProposerStateModel.model_validate(
+        final_state = ProposerStateModel.model_validate(
             self._proposer_graph.invoke(initial_state)
         )
         return final_state.activation_candidate_id
 
-    def _build_proposer_graph(self) -> CompiledStateGraph[_ProposerStateModel]:
+    def _build_proposer_graph(self) -> CompiledStateGraph[ProposerStateModel]:
         """Construct the single-node mutation proposer workflow."""
 
         LOGGER.debug("building dedicated mutation proposer subgraph")
-        builder = StateGraph(_ProposerStateModel)
+        builder = StateGraph(ProposerStateModel)
         builder.add_node(
             "select_activation_candidate", self._select_activation_candidate
         )
@@ -79,8 +69,8 @@ class MutationEngine:
         return builder.compile()
 
     def _select_activation_candidate(
-        self, state: _ProposerStateModel
-    ) -> _ProposerStateModel:
+        self, state: ProposerStateModel
+    ) -> ProposerStateModel:
         """Select exactly one activation candidate from the live session graph."""
 
         activation_candidate_id = self._activation_candidate_id(state)
@@ -96,7 +86,7 @@ class MutationEngine:
             update={"activation_candidate_id": activation_candidate_id}
         )
 
-    def _activation_candidate_id(self, state: _ProposerStateModel) -> str | None:
+    def _activation_candidate_id(self, state: ProposerStateModel) -> str | None:
         """Return the single activation candidate for this cycle."""
 
         active_candidates = [
@@ -108,7 +98,10 @@ class MutationEngine:
             for node_id in active_candidates:
                 node_data = state.session_graph.graph.nodes[node_id]
                 graph_node = node_data.get("node")
-                if getattr(graph_node, "node_kind", None) is NodeKind.SEED:
+                if (
+                    isinstance(graph_node, GraphNode)
+                    and graph_node.node_kind is NodeKind.SEED
+                ):
                     continue
 
                 return node_id

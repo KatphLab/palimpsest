@@ -41,7 +41,7 @@ class ExecutionStatus(StrEnum):
     RUNNING = "running"
     PAUSED = "paused"
     COMPLETED = "completed"
-    ERROR = "error"
+    FAILED = "failed"
 
 
 class ExecutionState(StrictBaseModel):

@@ -117,6 +117,7 @@ def test_session_runtime_exposes_all_runtime_event_kinds() -> None:
         "lock_edge",
         "unlock_edge",
         "fork_session",
+        "graph_switch",
     }
 
 

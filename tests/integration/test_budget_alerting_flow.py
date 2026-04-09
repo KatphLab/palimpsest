@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Protocol
 
 import pytest
 
@@ -20,6 +21,11 @@ from tests.fixtures import (
 )
 
 pytestmark = pytest.mark.integration
+
+
+class _RuntimeEventRecord(Protocol):
+    @property
+    def event_type(self) -> object: ...
 
 
 def _build_runtime() -> SessionRuntime:
@@ -76,11 +82,13 @@ def _set_budget(runtime: SessionRuntime, *, estimated_cost_usd: str) -> None:
     )
 
 
-def _first_event_index(events: tuple[object, ...], event_type: EventType) -> int:
+def _first_event_index(
+    events: tuple[_RuntimeEventRecord, ...], event_type: EventType
+) -> int:
     """Return the first index for a matching event type."""
 
     for index, event in enumerate(events):
-        if getattr(event, "event_type", None) is event_type:
+        if event.event_type is event_type:
             return index
 
     raise AssertionError(f"missing {event_type.value} event")

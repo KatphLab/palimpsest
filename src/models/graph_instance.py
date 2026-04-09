@@ -8,7 +8,7 @@ import networkx as nx
 from pydantic import ConfigDict, Field, JsonValue, StringConstraints, field_validator
 from typing_extensions import Annotated
 
-from models.common import StrictBaseModel, UTCDateTime
+from models.common import GraphT, StrictBaseModel, UTCDateTime
 from models.fork_point import ForkPoint
 from models.multi_graph_view import GraphSummary
 from models.seed_config import SeedConfiguration
@@ -41,7 +41,7 @@ class GraphInstance(StrictBaseModel):
     created_at: UTCDateTime
     fork_point: ForkPoint | None = None
     seed_config: SeedConfiguration
-    graph_data: nx.DiGraph  # type: ignore[type-arg]  # NetworkX runtime type is not subscriptable.
+    graph_data: GraphT
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
     last_modified: UTCDateTime
     state: GraphLifecycleState = GraphLifecycleState.CREATED
@@ -55,8 +55,8 @@ class GraphInstance(StrictBaseModel):
     @classmethod
     def _validate_graph_data(
         cls,
-        value: nx.DiGraph,  # type: ignore[type-arg]  # NetworkX runtime type is not subscriptable.
-    ) -> nx.DiGraph:  # type: ignore[type-arg]  # NetworkX runtime type is not subscriptable.
+        value: GraphT,
+    ) -> GraphT:
         if not isinstance(value, nx.DiGraph):
             raise TypeError("graph_data must be a networkx.DiGraph")
 

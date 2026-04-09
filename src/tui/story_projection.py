@@ -14,7 +14,13 @@ from tui.constants import SECTION_DIVIDER
 __all__ = ["build_story_lines"]
 
 
-def build_story_lines(*, session_graph: SessionGraph, session: Session) -> list[str]:
+def build_story_lines(
+    *,
+    session_graph: SessionGraph,
+    session: Session,
+    active_position: int | None = None,
+    total_graphs: int | None = None,
+) -> list[str]:
     """Build a deterministic, human-readable story flow from the session graph."""
 
     seed_node_id = _seed_node_id(session_graph)
@@ -29,6 +35,9 @@ def build_story_lines(*, session_graph: SessionGraph, session: Session) -> list[
         SECTION_DIVIDER,
         "📖 STORY FLOW",
     ]
+
+    if active_position is not None and total_graphs is not None:
+        lines.append(f"Graph {active_position}/{total_graphs}")
 
     visited_scene_ids: set[str] = set()
     for index, node_id in enumerate(mainline_node_ids, start=1):

@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from langchain_core.runnables.graph import Graph
 from langgraph.graph import START
+from langgraph.graph.state import CompiledStateGraph
 
-from agents.mutation_engine import MutationEngine
-from agents.scene_agent import SceneAgent
-from graph.session_graph import SessionGraph
-from models.common import SessionStatus
+from models.common import NodeKind, SessionStatus
+from models.graph import GraphNode
 from models.session import Session
-from tests.fixtures import DeterministicSceneGenerationProvider
 from utils.time import utc_now
+
+if TYPE_CHECKING:
+    from agents.mutation_engine import MutationEngine
+    from models.mutation import ProposerStateModel
 
 _SCENE_AGENT_NODE_NAMES = {"create_seed_node", "generate_first_scene"}
 
@@ -33,59 +37,39 @@ def _mutation_engine() -> MutationEngine:
         "subgraph has not been implemented yet"
     )
 
+    import models  # noqa: F401
+    from agents.mutation_engine import MutationEngine
+
     return MutationEngine()
 
 
-def _proposer_graph(engine: object) -> object:
-    """Resolve the compiled proposer graph from the engine."""
+def _proposer_graph(engine: MutationEngine) -> CompiledStateGraph[ProposerStateModel]:
+    """Return the compiled proposer graph exposed by the engine."""
 
-    for attr_name in ("proposer_graph", "_proposer_graph"):
-        graph = getattr(engine, attr_name, None)
-        if graph is not None:
-            return graph
-
-    for method_name in ("build_proposer_subgraph", "_build_proposer_graph"):
-        builder = getattr(engine, method_name, None)
-        if callable(builder):
-            return builder()
-
-    raise AssertionError("MutationEngine does not expose a proposer subgraph builder")
+    return engine.proposer_graph
 
 
-def _graph_view(graph: object) -> object:
+def _graph_view(graph: CompiledStateGraph[ProposerStateModel]) -> Graph:
     """Return an inspectable graph view from LangGraph wrappers."""
 
-    getter = getattr(graph, "get_graph", None)
-    if callable(getter):
-        return getter()
-
-    return graph
+    return graph.get_graph()
 
 
-def _graph_node_names(graph: object) -> list[str]:
+def _graph_node_names(graph: CompiledStateGraph[ProposerStateModel]) -> list[str]:
     """Collect node names from a graph or graph view."""
 
     view = _graph_view(graph)
-    nodes = getattr(view, "nodes", None)
-    assert nodes is not None, "mutation proposer graph cannot be inspected for nodes"
-
-    if hasattr(nodes, "keys"):
-        return list(nodes.keys())
-
-    return list(nodes)
+    return list(view.nodes.keys())
 
 
-def _start_successors(graph: object) -> list[str]:
+def _start_successors(graph: CompiledStateGraph[ProposerStateModel]) -> list[str]:
     """Collect nodes that are activated directly from START."""
 
     view = _graph_view(graph)
-    edges = getattr(view, "edges", None)
-    assert edges is not None, "mutation proposer graph cannot be inspected for edges"
-
     successors: list[str] = []
-    for edge in edges:
-        if len(edge) >= 2 and edge[0] == START:
-            successors.append(edge[1])
+    for edge in view.edges:
+        if edge.source == START:
+            successors.append(edge.target)
 
     return successors
 
@@ -128,9 +112,29 @@ def test_mutation_engine_prefers_scene_activation_candidate_when_available() -> 
         created_at=utc_now(),
         updated_at=utc_now(),
     )
+    import models  # noqa: F401
+    from graph.session_graph import SessionGraph
+
     session_graph = SessionGraph()
-    scene_agent = SceneAgent(provider=DeterministicSceneGenerationProvider())
-    seed_node_id, scene_node_id = scene_agent.bootstrap_session(session, session_graph)
+    seed_node_id = "seed-node-001"
+    scene_node_id = "scene-node-001"
+    session_graph.add_node(
+        GraphNode(
+            node_id=seed_node_id,
+            session_id=session.session_id,
+            node_kind=NodeKind.SEED,
+            text=session.seed_text,
+        )
+    )
+    session_graph.add_node(
+        GraphNode(
+            node_id=scene_node_id,
+            session_id=session.session_id,
+            node_kind=NodeKind.SCENE,
+            text="The bell answers from beneath the surface.",
+        )
+    )
+    session.active_node_ids = [seed_node_id, scene_node_id]
 
     engine = _mutation_engine()
     candidate_id = engine.select_activation_candidate(session, session_graph)

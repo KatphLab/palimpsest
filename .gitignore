@@ -217,3 +217,10 @@ __marimo__/
 
 # Worktrees
 .worktrees/
+.graphs
+
+# Universal OS/editor temp files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

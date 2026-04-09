@@ -38,12 +38,12 @@ make install
 ### Running a Session
 
 ```bash
-# Start the terminal UI
-uv run python -m palimpsest
-
-# Or run directly
-python -m src.main
+# Start the terminal UI (sole supported entrypoint)
+PYTHONPATH=src uv run python -m main
 ```
+
+Run this command from the repository root. No alternate CLI entrypoint is
+supported.
 
 ## Using the Application
 

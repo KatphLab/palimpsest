@@ -9,6 +9,17 @@ from uuid import UUID
 
 from models.common import MutationActionType
 from models.session import SceneGenerationProvider
+from tests.fixtures.graph_instances import build_graph_instance
+
+__all__ = [
+    "CountingSceneGenerationProvider",
+    "DeterministicSceneGenerationProvider",
+    "FlakyMutationProposalProvider",
+    "SequencedMutationProposalProvider",
+    "build_graph_instance",
+    "build_mutation_response",
+    "extract_narrative_context",
+]
 
 
 class DeterministicSceneGenerationProvider(SceneGenerationProvider):

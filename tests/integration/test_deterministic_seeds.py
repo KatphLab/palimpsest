@@ -6,37 +6,33 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 
-import networkx as nx
-
 from models.graph_instance import GraphInstance
 from models.requests import GraphForkRequest
-from models.seed_config import SeedConfiguration
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.graph_forker import GraphForker
+from tests.fixtures import build_graph_instance
 
 
 def _build_source_graph(
     *, graph_id: str, edge_id: str = "edge_1", metadata_state: str = "root"
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_edge(
-        "n1",
-        "n2",
-        edge_id=edge_id,
-        narrative="A forking decision.",
-        coherence_score=0.9,
-    )
-
     created_at = datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc)
-    return GraphInstance(
-        id=graph_id,
-        name=f"Graph {graph_id[:8]}",
+    return build_graph_instance(
+        graph_id=graph_id,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{graph_id[:8]}"),
-        graph_data=graph,
+        seed=f"seed-{graph_id[:8]}",
+        edges=(
+            (
+                "n1",
+                "n2",
+                {
+                    "edge_id": edge_id,
+                    "narrative": "A forking decision.",
+                    "coherence_score": 0.9,
+                },
+            ),
+        ),
         metadata={"state": metadata_state},
         last_modified=created_at,
     )
