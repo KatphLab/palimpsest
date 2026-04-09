@@ -44,7 +44,9 @@ from models.commands import (
     UnlockEdgeCommand,
 )
 from models.common import (
+    BudgetTelemetry,
     CheckStatus,
+    CoherenceSnapshot,
     DriftCategory,
     EventOutcome,
     MutationActionType,
@@ -53,6 +55,7 @@ from models.common import (
     SafetyCheckResult,
     SessionStatus,
     StrictBaseModel,
+    TerminationVoteState,
     UTCDateTime,
 )
 from models.events import EventType, MutationStreamEvent, SessionEvent
@@ -1508,8 +1511,9 @@ class SessionRuntime:
             LOGGER.warning("Failed to get source session for fork: %s", error)
             return None
 
-        # Generate new graph ID
-        forked_graph_id = str(uuid4())
+        # Generate new graph ID (keep as UUID for session state key)
+        forked_session_id = uuid4()
+        forked_graph_id = str(forked_session_id)
         now = utc_now()
 
         # Create the forked session
@@ -1523,6 +1527,59 @@ class SessionRuntime:
 
         # Register the new session (appends to registry) - T024
         self.graph_registry.register_session(forked_session)
+
+        # Also add to _session_states so switching works properly
+        forked_graph = copy.deepcopy(self.session_graph)
+        self._retarget_graph_session_ids(forked_graph, forked_session_id)
+        _mark_runtime_mutation_graph(forked_graph)
+        _reset_runtime_mutation_cycle(forked_graph)
+        # Create required telemetry for running session
+        forked_coherence = CoherenceSnapshot(
+            global_score=0.5,
+            local_scores=[],
+            global_check_status=CheckStatus.PASS,
+            sampled_at=now,
+            checked_by="fork_from_current_node",
+        )
+        forked_budget = BudgetTelemetry(
+            estimated_cost_usd=Decimal("0.0"),
+            budget_limit_usd=Decimal("5.00"),
+            token_input_count=0,
+            token_output_count=0,
+            model_call_count=0,
+        )
+        forked_termination = TerminationVoteState(
+            active_node_count=1,
+            votes_for_termination=0,
+            votes_against_termination=0,
+            majority_threshold=0.51,
+            termination_reached=False,
+            last_updated_at=now,
+        )
+
+        self._session_states[forked_session_id] = _RuntimeSessionState(
+            session=Session(
+                session_id=forked_session_id,
+                status=SessionStatus.RUNNING,
+                seed_text=fork_request.seed or "",
+                graph_version=0,
+                active_node_ids=[fork_request.current_node_id]
+                if fork_request.current_node_id
+                else [],
+                created_at=now,
+                updated_at=now,
+                parent_session_id=UUID(fork_request.active_graph_id)
+                if fork_request.active_graph_id
+                else None,
+                coherence=forked_coherence,
+                budget=forked_budget,
+                termination=forked_termination,
+            ),
+            session_graph=forked_graph,
+            event_log=EventLog(
+                session_id=forked_session_id, latest_sequence=0, events=[]
+            ),
+        )
 
         # Set the forked session as active - T025
         active_session = self.graph_registry.set_active_session(forked_graph_id)
