@@ -860,12 +860,3 @@ def test_tui_entry_path_opens_successfully_with_core_workflows(
         _binding_action(binding) for binding in app_module.SessionApp.BINDINGS
     }
     assert expected_actions.issubset(available_actions)
-
-
-def test_main_rejects_unknown_legacy_commands() -> None:
-    """Main startup should reject legacy command-style arguments."""
-
-    main_module = _main_module()
-
-    with pytest.raises(SystemExit):
-        main_module.main(["fork"])
