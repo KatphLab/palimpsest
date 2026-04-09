@@ -55,9 +55,17 @@ from models.common import (
     UTCDateTime,
 )
 from models.events import EventType, MutationStreamEvent, SessionEvent
+from models.execution import ExecutionStatus
 from models.graph import GraphEdge, GraphNode
+from models.graph_session import GraphSession
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode
+from models.requests import (
+    ForkFromCurrentNodeRequest,
+    GraphNavigationDirection,
+    GraphSwitchRequest,
+)
+from models.responses import MultiGraphStatusSnapshot, RunningState
 from models.session import Session
 from runtime.consistency import (
     ConsistencyGuardrailState,
@@ -68,6 +76,7 @@ from runtime.consistency import (
 )
 from runtime.event_log import EventLog
 from runtime.exporter import build_export_artifact, write_export_artifact
+from runtime.graph_registry import GraphRegistry, NoActiveGraphError
 from utils.time import utc_now
 
 __all__ = ["SessionRuntime"]
@@ -267,6 +276,7 @@ class SessionRuntime:
         *,
         scene_agent: SceneAgent | None = None,
         mutation_proposer: LLMMutationProposer | None = None,
+        graph_registry: GraphRegistry | None = None,
     ) -> None:
         _install_session_graph_mutation_hooks()
         self.session_graph = session_graph or SessionGraph()
@@ -298,6 +308,9 @@ class SessionRuntime:
         self._global_mutation_storm_threshold = _RUNTIME_GLOBAL_MUTATION_STORM_THRESHOLD
         self._global_consistency_check_interval = (
             _RUNTIME_GLOBAL_CONSISTENCY_CHECK_INTERVAL
+        )
+        self.graph_registry = (
+            graph_registry if graph_registry is not None else GraphRegistry()
         )
 
     @property
@@ -1172,6 +1185,194 @@ class SessionRuntime:
         self.session_id = session_id
         self.session = session_state.session
         self.session_graph = session_state.session_graph
+
+    def get_active_graph_session(self) -> GraphSession | None:
+        """Return the currently active GraphSession from the registry.
+
+        Returns:
+            Defensive copy of the active GraphSession, or None if no active graph.
+        """
+        try:
+            return self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return None
+
+    def register_graph_session(self, session: GraphSession) -> GraphSession:
+        """Register a GraphSession in the multi-graph registry.
+
+        Args:
+            session: The GraphSession to register.
+
+        Returns:
+            Defensive copy of the registered session.
+        """
+        return self.graph_registry.register_session(session)
+
+    def switch_to_next_graph(self) -> GraphSession:
+        """Switch to the next graph in cyclic order (Tab navigation).
+
+        Returns:
+            Defensive copy of the newly active session.
+
+        Raises:
+            NoActiveGraphError: If no graphs are registered.
+        """
+        return self.graph_registry.switch_to_next()
+
+    def switch_to_previous_graph(self) -> GraphSession:
+        """Switch to the previous graph in cyclic order (Shift+Tab navigation).
+
+        Returns:
+            Defensive copy of the newly active session.
+
+        Raises:
+            NoActiveGraphError: If no graphs are registered.
+        """
+        return self.graph_registry.switch_to_previous()
+
+    def get_multi_graph_status_snapshot(self) -> MultiGraphStatusSnapshot:
+        """Get a status snapshot for TUI multi-graph rendering.
+
+        Returns:
+            MultiGraphStatusSnapshot with active position, total graphs,
+            and active running state. Returns idle state when no graphs exist.
+        """
+        total = self.graph_registry.get_session_count()
+        if total == 0:
+            return MultiGraphStatusSnapshot(
+                active_position=1,
+                total_graphs=0,
+                active_running_state=RunningState.IDLE,
+            )
+
+        try:
+            active_session = self.graph_registry.get_active_session()
+            active_index = self.graph_registry.get_active_index()
+            return MultiGraphStatusSnapshot(
+                active_position=active_index + 1,  # 1-based for display
+                total_graphs=total,
+                active_running_state=RunningState(
+                    active_session.execution_status.value
+                ),
+            )
+        except NoActiveGraphError:
+            return MultiGraphStatusSnapshot(
+                active_position=1,
+                total_graphs=total,
+                active_running_state=RunningState.IDLE,
+            )
+
+    def create_fork_request(
+        self, seed: str | None = None
+    ) -> ForkFromCurrentNodeRequest | None:
+        """Create a ForkFromCurrentNodeRequest from the active graph context.
+
+        Args:
+            seed: Optional user-provided seed value.
+
+        Returns:
+            ForkFromCurrentNodeRequest if active graph exists with current node,
+            None otherwise.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return None
+
+        if active_session.current_node_id is None:
+            return None
+
+        return ForkFromCurrentNodeRequest(
+            active_graph_id=active_session.graph_id,
+            current_node_id=active_session.current_node_id,
+            seed=seed,
+        )
+
+    def create_graph_switch_request(
+        self, direction: GraphNavigationDirection
+    ) -> GraphSwitchRequest | None:
+        """Create a GraphSwitchRequest for navigation.
+
+        Args:
+            direction: Navigation direction (NEXT or PREVIOUS).
+
+        Returns:
+            GraphSwitchRequest if there are multiple graphs to switch between,
+            None if there's only one or zero graphs.
+        """
+        total = self.graph_registry.get_session_count()
+        if total < 2:
+            return None
+
+        try:
+            sessions = self.graph_registry.list_sessions()
+            active_index = self.graph_registry.get_active_index()
+        except NoActiveGraphError:
+            return None
+
+        # Calculate target index based on direction
+        if direction == GraphNavigationDirection.NEXT:
+            target_index = (active_index + 1) % total
+        else:
+            target_index = (active_index - 1) % total
+
+        target_session = sessions[target_index]
+
+        return GraphSwitchRequest(
+            target_graph_id=target_session.graph_id,
+            direction=direction,
+            preserve_current=True,
+        )
+
+    def update_current_node_id(self, node_id: str) -> bool:
+        """Update the current_node_id for the active graph session.
+
+        Args:
+            node_id: The new current node ID.
+
+        Returns:
+            True if update succeeded, False if no active graph.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return False
+
+        updated_session = active_session.model_copy(
+            update={"current_node_id": node_id, "last_activity_at": utc_now()}
+        )
+        self.graph_registry.update_session(updated_session)
+        return True
+
+    def update_execution_status(self, status: ExecutionStatus) -> bool:
+        """Update the execution_status for the active graph session.
+
+        Args:
+            status: The new execution status.
+
+        Returns:
+            True if update succeeded, False if no active graph.
+        """
+        try:
+            active_session = self.graph_registry.get_active_session()
+        except NoActiveGraphError:
+            return False
+
+        updated_session = active_session.model_copy(
+            update={"execution_status": status, "last_activity_at": utc_now()}
+        )
+        self.graph_registry.update_session(updated_session)
+        return True
+
+    @property
+    def graph_count(self) -> int:
+        """Return the number of registered graph sessions."""
+        return self.graph_registry.get_session_count()
+
+    @property
+    def active_graph_index(self) -> int:
+        """Return the current active graph index (0-based)."""
+        return self.graph_registry.get_active_index()
 
     def _append_runtime_event(
         self,
