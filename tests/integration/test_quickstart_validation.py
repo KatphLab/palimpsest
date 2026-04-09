@@ -13,7 +13,7 @@ from persistence.graph_store import GraphStore
 
 
 def _build_graph(*, graph_id: str, edge_id: str = "edge_1") -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+    graph: nx.DiGraph = nx.DiGraph()
     graph.add_node("n1")
     graph.add_node("n2")
     graph.add_edge("n1", "n2", edge_id=edge_id, coherence_score=0.9)

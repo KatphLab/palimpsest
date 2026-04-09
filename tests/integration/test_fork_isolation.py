@@ -5,42 +5,41 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-import networkx as nx
-
 from models.graph_instance import GraphInstance
 from models.requests import GraphForkRequest
-from models.seed_config import SeedConfiguration
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.graph_forker import GraphForker
+from tests.fixtures import build_graph_instance
 
 
 def _build_source_graph(graph_id: str) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_node("n3")
-    graph.add_edge(
-        "n1",
-        "n2",
-        edge_id="edge_1",
-        history_label="locked",
-        coherence_score=0.9,
-    )
-    graph.add_edge(
-        "n2",
-        "n3",
-        edge_id="edge_2",
-        history_label="future",
-        coherence_score=0.9,
-    )
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name="Root graph",
         created_at=datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc),
-        seed_config=SeedConfiguration.generate(seed="root-seed"),
-        graph_data=graph,
+        seed="root-seed",
+        nodes=("n1", "n2", "n3"),
+        edges=(
+            (
+                "n1",
+                "n2",
+                {
+                    "edge_id": "edge_1",
+                    "history_label": "locked",
+                    "coherence_score": 0.9,
+                },
+            ),
+            (
+                "n2",
+                "n3",
+                {
+                    "edge_id": "edge_2",
+                    "history_label": "future",
+                    "coherence_score": 0.9,
+                },
+            ),
+        ),
         metadata={"state": "root"},
         last_modified=datetime(2026, 4, 8, 10, 0, tzinfo=timezone.utc),
     )

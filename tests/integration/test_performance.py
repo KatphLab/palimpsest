@@ -6,16 +6,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 
-import networkx as nx
-
-from models.graph_instance import GraphInstance, GraphLifecycleState
+from models.graph_instance import GraphInstance
 from models.requests import GraphForkRequest, GraphSwitchRequest
-from models.seed_config import SeedConfiguration
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.graph_forker import GraphForker
 from services.graph_manager import GraphManager
 from services.graph_switcher import GraphSwitcher
+from tests.fixtures import build_graph_instance
 
 
 def _build_chain_graph_instance(
@@ -26,26 +24,23 @@ def _build_chain_graph_instance(
     node_count: int,
     edge_id_prefix: str,
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    for index in range(node_count):
-        graph.add_node(f"n{index}")
-    for index in range(node_count - 1):
-        graph.add_edge(
-            f"n{index}",
-            f"n{index + 1}",
-            edge_id=f"{edge_id_prefix}_{index}",
-            coherence_score=0.9,
-        )
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name=name,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{name}"),
-        graph_data=graph,
-        metadata={},
-        last_modified=created_at,
-        state=GraphLifecycleState.ACTIVE,
+        seed=f"seed-{name}",
+        nodes=tuple(f"n{index}" for index in range(node_count)),
+        edges=tuple(
+            (
+                f"n{index}",
+                f"n{index + 1}",
+                {
+                    "edge_id": f"{edge_id_prefix}_{index}",
+                    "coherence_score": 0.9,
+                },
+            )
+            for index in range(node_count - 1)
+        ),
     )
 
 

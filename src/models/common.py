@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, TypeAlias
 
+import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.functional_validators import AfterValidator
 
@@ -16,6 +17,7 @@ __all__ = [
     "CoherenceSnapshot",
     "DriftCategory",
     "EventOutcome",
+    "GraphT",
     "MutationActionType",
     "MutationEventKind",
     "NodeCoherenceScore",
@@ -29,6 +31,11 @@ __all__ = [
     "TerminationVoteState",
     "UTCDateTime",
 ]
+
+if TYPE_CHECKING:
+    GraphT: TypeAlias = nx.DiGraph[str]
+else:
+    GraphT: TypeAlias = nx.DiGraph
 
 
 class StrictBaseModel(BaseModel):

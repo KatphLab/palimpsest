@@ -6,16 +6,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 
-import networkx as nx
-
 from models.graph_instance import GraphInstance, GraphLifecycleState
 from models.requests import GraphSwitchRequest
-from models.seed_config import SeedConfiguration
 from models.views import FilterState, ViewPreferences
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
 from services.graph_manager import GraphManager
 from services.graph_switcher import GraphSwitcher
+from tests.fixtures import build_graph_instance
 
 
 def _build_graph_instance(
@@ -25,19 +23,11 @@ def _build_graph_instance(
     created_at: datetime,
     state: GraphLifecycleState = GraphLifecycleState.ACTIVE,
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_edge("n1", "n2", edge_id="edge_1")
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name=name,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{name}"),
-        graph_data=graph,
-        metadata={},
-        last_modified=created_at,
+        seed=f"seed-{name}",
         state=state,
     )
 

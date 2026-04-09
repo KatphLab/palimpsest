@@ -13,8 +13,8 @@ from models.graph_instance import GraphInstance
 from models.seed_config import SeedConfiguration
 
 
-def _sample_graph() -> nx.DiGraph:  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
+def _sample_graph() -> nx.DiGraph:
+    graph: nx.DiGraph = nx.DiGraph()
     graph.add_node("n1")
     graph.add_node("n2")
     graph.add_edge("n1", "n2", edge_id="edge-1")

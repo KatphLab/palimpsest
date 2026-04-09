@@ -7,13 +7,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 
-import networkx as nx
 import pytest
 
-from models.graph_instance import GraphInstance, GraphLifecycleState
-from models.seed_config import SeedConfiguration
+from models.graph_instance import GraphInstance
 from persistence.graph_store import GraphStore
 from runtime.multi_graph_executor import MultiGraphExecutor
+from tests.fixtures import build_graph_instance
 
 
 def _build_graph_instance(
@@ -22,22 +21,16 @@ def _build_graph_instance(
     name: str,
     created_at: datetime,
 ) -> GraphInstance:
-    graph: nx.DiGraph = nx.DiGraph()  # type: ignore[type-arg]  # Runtime NetworkX type is not subscriptable.
-    graph.add_node("n1")
-    graph.add_node("n2")
-    graph.add_node("n3")
-    graph.add_edge("n1", "n2", edge_id="edge_1")
-    graph.add_edge("n2", "n3", edge_id="edge_2")
-
-    return GraphInstance(
-        id=graph_id,
+    return build_graph_instance(
+        graph_id=graph_id,
         name=name,
         created_at=created_at,
-        seed_config=SeedConfiguration.generate(seed=f"seed-{name}"),
-        graph_data=graph,
-        metadata={},
-        last_modified=created_at,
-        state=GraphLifecycleState.ACTIVE,
+        seed=f"seed-{name}",
+        nodes=("n1", "n2", "n3"),
+        edges=(
+            ("n1", "n2", {"edge_id": "edge_1"}),
+            ("n2", "n3", {"edge_id": "edge_2"}),
+        ),
     )
 
 
