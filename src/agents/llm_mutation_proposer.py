@@ -53,7 +53,7 @@ class _OpenAIMutationProposalProvider:
     def __init__(self, *, model_name: str | None = None) -> None:
         settings = get_settings()
         self._client = ChatOpenAI(
-            model=model_name or settings.openai_model,  # type: ignore[call-arg]  # LangChain's stub omits the runtime constructor signature.
+            model=model_name or settings.openai_model,  # type: ignore[call-arg]  # LangChain's stub omits the runtime constructor signature. DO NOT REMOVE
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
         )
