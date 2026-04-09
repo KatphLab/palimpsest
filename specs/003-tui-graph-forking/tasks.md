@@ -136,10 +136,10 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T046 [P] [US3] Unit test for active-only running state in status snapshot in tests/unit/test_tui_widgets.py
-- [ ] T047 [P] [US3] Integration test for background graph progression in tests/integration/test_parallel_execution.py
-- [ ] T048 [P] [US3] Integration test for status bar active-only running state display in tests/integration/test_parallel_execution.py
-- [ ] T049 [P] [US3] Integration test for inactive graph advancement while off-screen in tests/integration/test_parallel_execution.py
+- [x] T046 [P] [US3] Unit test for active-only running state in status snapshot in tests/unit/test_tui_widgets.py
+- [x] T047 [P] [US3] Integration test for background graph progression in tests/integration/test_parallel_execution.py
+- [x] T048 [P] [US3] Integration test for status bar active-only running state display in tests/integration/test_parallel_execution.py
+- [x] T049 [P] [US3] Integration test for inactive graph advancement while off-screen in tests/integration/test_parallel_execution.py
 
 ### Implementation for User Story 3
 

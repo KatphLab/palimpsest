@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from time import sleep
 
 from models.execution import ExecutionStatus
 from models.graph_instance import GraphInstance
@@ -164,3 +165,83 @@ def test_background_operations_do_not_block_foreground(tmp_path: Path) -> None:
     assert foreground_state.status == ExecutionStatus.RUNNING
     assert background_state.status == ExecutionStatus.PAUSED
     assert snapshot.total_graphs == 2
+
+
+def test_background_graph_progresses_while_not_active() -> None:
+    """Inactive graph should keep progressing while another graph is active."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440030"
+    graph_b = "550e8400-e29b-41d4-a716-446655440031"
+
+    executor.register_graph(GraphSession(graph_id=graph_a, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b, current_node_id="n1"))
+
+    executor.start_graph(graph_a)
+    executor.start_graph(graph_b)
+    executor.set_active_session(graph_a)
+
+    before = executor.get_session(graph_b)
+    assert before is not None
+
+    sleep(0.05)
+
+    after = executor.get_session(graph_b)
+    assert after is not None
+    assert after.execution_status == ExecutionStatus.RUNNING
+    assert after.last_activity_at > before.last_activity_at
+
+
+def test_status_snapshot_reports_active_graph_state_only() -> None:
+    """Status snapshot should report the active graph state, not background state."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440040"
+    graph_b = "550e8400-e29b-41d4-a716-446655440041"
+
+    executor.register_graph(
+        GraphSession(
+            graph_id=graph_a,
+            current_node_id="n1",
+            execution_status=ExecutionStatus.PAUSED,
+        )
+    )
+    executor.register_graph(
+        GraphSession(
+            graph_id=graph_b,
+            current_node_id="n1",
+            execution_status=ExecutionStatus.RUNNING,
+        )
+    )
+    executor.set_active_session(graph_a)
+
+    snapshot = executor.get_status_snapshot()
+
+    assert snapshot.active_position == 1
+    assert snapshot.total_graphs == 2
+    assert snapshot.active_running_state == ExecutionStatus.PAUSED
+
+
+def test_inactive_graph_advance_continues_after_focus_switch() -> None:
+    """Background graph should keep advancing after user switches focus away."""
+
+    executor = MultiGraphExecutor(max_parallel=3)
+    graph_a = "550e8400-e29b-41d4-a716-446655440050"
+    graph_b = "550e8400-e29b-41d4-a716-446655440051"
+
+    executor.register_graph(GraphSession(graph_id=graph_a, current_node_id="n1"))
+    executor.register_graph(GraphSession(graph_id=graph_b, current_node_id="n1"))
+
+    executor.start_graph(graph_a)
+    executor.start_graph(graph_b)
+    executor.set_active_session(graph_b)
+
+    before = executor.get_session(graph_a)
+    assert before is not None
+
+    sleep(0.05)
+
+    after = executor.get_session(graph_a)
+    assert after is not None
+    assert after.execution_status == ExecutionStatus.RUNNING
+    assert after.last_activity_at > before.last_activity_at

@@ -176,3 +176,22 @@ def test_shortcut_footer_bar_renders_active_graph_position_and_total() -> None:
     status = footer.status_text().lower()
     assert "2/5" in status
     assert "running" in status
+
+
+def test_shortcut_footer_bar_uses_active_graph_running_state_only() -> None:
+    """Footer status should display only the active graph running state."""
+
+    widgets = _widgets_module()
+    footer = widgets.ShortcutFooterBar()
+    snapshot = MultiGraphStatusSnapshot(
+        active_position=1,
+        total_graphs=3,
+        active_running_state=RunningState.PAUSED,
+    )
+
+    footer.set_multi_graph_status(snapshot)
+
+    status = footer.status_text().lower()
+    assert "1/3" in status
+    assert "paused" in status
+    assert "running" not in status
