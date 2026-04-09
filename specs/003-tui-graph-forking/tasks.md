@@ -165,17 +165,17 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T057 [P] [US4] Unit test proving non-TUI entry paths are unavailable in tests/unit/test_tui_app.py
-- [ ] T058 [P] [US4] Unit test proving TUI entry path opens successfully in tests/unit/test_tui_app.py
-- [ ] T059 [P] [US4] Integration test for TUI-only startup workflow in tests/integration/test_multi_graph_view.py
+- [x] T057 [P] [US4] Unit test proving non-TUI entry paths are unavailable in tests/unit/test_tui_app.py
+- [x] T058 [P] [US4] Unit test proving TUI entry path opens successfully in tests/unit/test_tui_app.py
+- [x] T059 [P] [US4] Integration test for TUI-only startup workflow in tests/integration/test_multi_graph_view.py
 
 ### Implementation for User Story 4
 
-- [ ] T060 [US4] Remove or disable src/cli/main.py alternate entrypoint
-- [ ] T061 [US4] Update src/main.py to ensure it is the sole supported startup path
-- [ ] T062 [US4] Verify TUI opens all core workflows on startup
-- [ ] T063 [US4] Update documentation to reflect TUI-only entrypoint
-- [ ] T064 [US4] Add startup validation that TUI is the entry path in src/main.py
+- [x] T060 [US4] Remove or disable src/cli/main.py alternate entrypoint
+- [x] T061 [US4] Update src/main.py to ensure it is the sole supported startup path
+- [x] T062 [US4] Verify TUI opens all core workflows on startup
+- [x] T063 [US4] Update documentation to reflect TUI-only entrypoint
+- [x] T064 [US4] Add startup validation that TUI is the entry path in src/main.py
 
 **Checkpoint**: All user stories should now be independently functional
 

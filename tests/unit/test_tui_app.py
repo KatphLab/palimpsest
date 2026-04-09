@@ -22,6 +22,10 @@ def _app_module() -> ModuleType:
     return import_module("tui.app")
 
 
+def _main_module() -> ModuleType:
+    return import_module("main")
+
+
 class _RuntimeStub:
     def __init__(self) -> None:
         self.session_id = None
@@ -733,3 +737,50 @@ def test_shift_tab_keybinding_switches_to_previous_graph() -> None:
 
     assert runtime.previous_calls == 1
     assert refreshed["calls"] == 1
+
+
+def test_tui_entry_path_opens_successfully_with_core_workflows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Main startup should launch TUI mode with all core workflow bindings available."""
+
+    app_module = _app_module()
+    main_module = _main_module()
+    runtime = _RuntimeStub()
+    calls: list[str] = []
+
+    monkeypatch.setattr(main_module, "SessionRuntime", lambda: runtime)
+    monkeypatch.setattr(main_module, "setup_logging", lambda: None)
+
+    def _run_textual_mode(incoming_runtime: object) -> int:
+        _ = incoming_runtime
+        calls.append("run_textual_mode")
+        return 0
+
+    monkeypatch.setattr(main_module, "run_textual_mode", _run_textual_mode)
+
+    exit_code = main_module.main([])
+
+    assert exit_code == 0
+    assert calls == ["run_textual_mode"]
+
+    expected_actions = {
+        "start_session",
+        "pause_session",
+        "resume_session",
+        "continue_session",
+        "fork_from_current_node",
+        "next_graph",
+        "previous_graph",
+    }
+    available_actions = {binding[1] for binding in app_module.SessionApp.BINDINGS}
+    assert expected_actions.issubset(available_actions)
+
+
+def test_main_rejects_unknown_legacy_commands() -> None:
+    """Main startup should reject legacy command-style arguments."""
+
+    main_module = _main_module()
+
+    with pytest.raises(SystemExit):
+        main_module.main(["fork"])

@@ -38,12 +38,11 @@ make install
 ### Running a Session
 
 ```bash
-# Start the terminal UI
-uv run python -m palimpsest
-
-# Or run directly
-python -m src.main
+# Start the terminal UI (sole supported entrypoint)
+uv run python -m main
 ```
+
+The legacy graph CLI entrypoint in `src/cli/main.py` is disabled.
 
 ## Using the Application
 
