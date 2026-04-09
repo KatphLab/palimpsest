@@ -63,23 +63,3 @@ class GraphRegistry(StrictBaseModel):
             return None
 
         return self.graph_ids[self.active_index]
-
-    def get_next_index(self) -> int:
-        """Calculate the index for the next graph (Tab navigation).
-
-        Returns the current index if no graphs exist.
-        """
-        if not self.graph_ids:
-            return self.active_index
-
-        return (self.active_index + 1) % len(self.graph_ids)
-
-    def get_previous_index(self) -> int:
-        """Calculate the index for the previous graph (Shift+Tab navigation).
-
-        Returns the current index if no graphs exist.
-        """
-        if not self.graph_ids:
-            return self.active_index
-
-        return (self.active_index - 1) % len(self.graph_ids)

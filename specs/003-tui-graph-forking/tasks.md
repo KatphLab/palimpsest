@@ -50,7 +50,7 @@
 
 ### Runtime Infrastructure
 
-- [ ] T011 Implement graph_registry.py in src/runtime/graph_registry.py
+- [x] T011 Implement graph_registry.py in src/runtime/graph_registry.py
 - [ ] T012 Implement multi_graph_executor.py in src/runtime/multi_graph_executor.py
 - [ ] T013 Implement session_runtime.py active graph context in src/runtime/session_runtime.py
 
