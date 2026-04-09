@@ -6,6 +6,8 @@ from importlib import import_module
 from types import ModuleType
 from uuid import UUID
 
+import pytest
+
 from models.commands import (
     CommandType,
     ForkSessionCommand,
@@ -13,6 +15,7 @@ from models.commands import (
     TerminalCommand,
     UnlockEdgeCommand,
 )
+from models.responses import MultiGraphStatusSnapshot, RunningState
 
 
 def _widgets_module() -> ModuleType:
@@ -152,3 +155,24 @@ def test_shortcut_footer_bar_shows_spinner_when_generating() -> None:
     assert first.endswith("Generating scene...")
     assert second.endswith("Generating scene...")
     assert first != second
+
+
+def test_shortcut_footer_bar_renders_active_graph_position_and_total() -> None:
+    """Footer bar should render active graph position and total count."""
+
+    widgets = _widgets_module()
+    footer = widgets.ShortcutFooterBar()
+    snapshot = MultiGraphStatusSnapshot(
+        active_position=2,
+        total_graphs=5,
+        active_running_state=RunningState.RUNNING,
+    )
+
+    try:
+        footer.set_multi_graph_status(snapshot)
+    except AttributeError:
+        pytest.fail("ShortcutFooterBar.set_multi_graph_status not implemented yet")
+
+    status = footer.status_text().lower()
+    assert "2/5" in status
+    assert "running" in status

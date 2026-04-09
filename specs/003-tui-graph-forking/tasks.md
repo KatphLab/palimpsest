@@ -68,11 +68,11 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [X] T014 [P] [US1] Contract test for ForkFromCurrentNodeRequest in tests/contract/test_fork_request.py
-- [X] T015 [P] [US1] Unit test for `f` keybinding initiating fork flow in tests/unit/test_tui_app.py
-- [X] T016 [P] [US1] Unit test for fork cancel behavior in tests/unit/test_tui_app.py
-- [X] T017 [P] [US1] Integration test for fork-from-current-node flow in tests/integration/test_fork_flow.py
-- [X] T018 [P] [US1] Integration test for fork confirmation creates new active graph in tests/integration/test_fork_flow.py
+- [x] T014 [P] [US1] Contract test for ForkFromCurrentNodeRequest in tests/contract/test_fork_request.py
+- [x] T015 [P] [US1] Unit test for `f` keybinding initiating fork flow in tests/unit/test_tui_app.py
+- [x] T016 [P] [US1] Unit test for fork cancel behavior in tests/unit/test_tui_app.py
+- [x] T017 [P] [US1] Integration test for fork-from-current-node flow in tests/integration/test_fork_flow.py
+- [x] T018 [P] [US1] Integration test for fork confirmation creates new active graph in tests/integration/test_fork_flow.py
 
 ### Implementation for User Story 1
 
@@ -101,13 +101,13 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T029 [P] [US2] Contract test for GraphSwitchRequest in tests/contract/test_graph_switch.py
-- [ ] T030 [P] [US2] Contract test for MultiGraphStatusSnapshot in tests/contract/test_multi_graph_view.py
-- [ ] T031 [P] [US2] Unit test for `Tab` keybinding switching to next graph in tests/unit/test_tui_app.py
-- [ ] T032 [P] [US2] Unit test for `Shift+Tab` keybinding switching to previous graph in tests/unit/test_tui_app.py
-- [ ] T033 [P] [US2] Unit test for status bar rendering active_position/total_graphs in tests/unit/test_tui_widgets.py
-- [ ] T034 [P] [US2] Unit test for graph cycling wrapping at boundaries in tests/unit/services/test_phase7_graph_switcher.py
-- [ ] T035 [P] [US2] Integration test for multi-graph view integrity in tests/integration/test_multi_graph_view.py
+- [x] T029 [P] [US2] Contract test for GraphSwitchRequest in tests/contract/test_graph_switch.py
+- [x] T030 [P] [US2] Contract test for MultiGraphStatusSnapshot in tests/contract/test_multi_graph_view.py
+- [x] T031 [P] [US2] Unit test for `Tab` keybinding switching to next graph in tests/unit/test_tui_app.py
+- [x] T032 [P] [US2] Unit test for `Shift+Tab` keybinding switching to previous graph in tests/unit/test_tui_app.py
+- [x] T033 [P] [US2] Unit test for status bar rendering active_position/total_graphs in tests/unit/test_tui_widgets.py
+- [x] T034 [P] [US2] Unit test for graph cycling wrapping at boundaries in tests/unit/services/test_graph_switcher.py
+- [x] T035 [P] [US2] Integration test for multi-graph view integrity in tests/integration/test_multi_graph_view.py
 
 ### Implementation for User Story 2
 
@@ -307,15 +307,15 @@ With multiple developers:
 
 ## Summary
 
-| Phase | User Story | Priority | Task Count | Key Deliverable |
-|-------|-----------|----------|------------|-----------------|
-| 1 | Setup | - | 2 | Environment verified |
-| 2 | Foundational | - | 12 | Data models + runtime infra |
-| 3 | US1 - Fork From Active Node | P1 | 15 | `f` hotkey fork flow |
-| 4 | US2 - Navigate Multiple Graphs | P1 | 17 | `Tab`/`Shift+Tab` + status bar |
-| 5 | US3 - Concurrent Execution | P2 | 11 | Background execution + active-only status |
-| 6 | US4 - TUI-Only Entrypoint | P2 | 8 | Remove alternate entrypoints |
-| 7 | Polish | - | 17 | Docs, tests, performance, safety |
+| Phase | User Story                     | Priority | Task Count | Key Deliverable                           |
+| ----- | ------------------------------ | -------- | ---------- | ----------------------------------------- |
+| 1     | Setup                          | -        | 2          | Environment verified                      |
+| 2     | Foundational                   | -        | 12         | Data models + runtime infra               |
+| 3     | US1 - Fork From Active Node    | P1       | 15         | `f` hotkey fork flow                      |
+| 4     | US2 - Navigate Multiple Graphs | P1       | 17         | `Tab`/`Shift+Tab` + status bar            |
+| 5     | US3 - Concurrent Execution     | P2       | 11         | Background execution + active-only status |
+| 6     | US4 - TUI-Only Entrypoint      | P2       | 8          | Remove alternate entrypoints              |
+| 7     | Polish                         | -        | 17         | Docs, tests, performance, safety          |
 
 **Total Tasks**: 82
 **Parallel Opportunities**: All [P] marked tasks across all phases

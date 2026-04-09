@@ -56,6 +56,27 @@ class _RuntimeWithSessionIdStub:
         self.state_version = 1
 
 
+class _RuntimeWithGraphSwitchStub:
+    """Runtime stub for Tab/Shift+Tab graph navigation tests."""
+
+    def __init__(self, *, graph_count: int = 3) -> None:
+        self.session_id = uuid4()
+        self.session = _build_created_session(seed_text="seed")
+        self.session_graph = SessionGraph()
+        self.state_version = 1
+        self.graph_count = graph_count
+        self.next_calls = 0
+        self.previous_calls = 0
+
+    def switch_to_next_graph(self) -> object:
+        self.next_calls += 1
+        return object()
+
+    def switch_to_previous_graph(self) -> object:
+        self.previous_calls += 1
+        return object()
+
+
 class _StaticPanelSpy:
     def __init__(self) -> None:
         self.contents: list[str] = []
@@ -662,3 +683,53 @@ class TestForkCancelBehavior:
 
         # Should pop the fork screen
         assert screens_popped == 1
+
+
+def test_tab_keybinding_switches_to_next_graph() -> None:
+    """Tab keybinding should route to next-graph runtime navigation."""
+
+    app_module = _app_module()
+    runtime = _RuntimeWithGraphSwitchStub(graph_count=3)
+    app = app_module.SessionApp(runtime=runtime)
+    refreshed = {"calls": 0}
+
+    def _refresh_panels() -> None:
+        refreshed["calls"] += 1
+
+    app._refresh_panels = _refresh_panels
+
+    if not any(binding[0] == "tab" for binding in app.BINDINGS):
+        pytest.fail("Tab keybinding is not configured in SessionApp.BINDINGS")
+
+    try:
+        app.action_next_graph()
+    except AttributeError:
+        pytest.fail("action_next_graph not implemented yet")
+
+    assert runtime.next_calls == 1
+    assert refreshed["calls"] == 1
+
+
+def test_shift_tab_keybinding_switches_to_previous_graph() -> None:
+    """Shift+Tab keybinding should route to previous-graph navigation."""
+
+    app_module = _app_module()
+    runtime = _RuntimeWithGraphSwitchStub(graph_count=3)
+    app = app_module.SessionApp(runtime=runtime)
+    refreshed = {"calls": 0}
+
+    def _refresh_panels() -> None:
+        refreshed["calls"] += 1
+
+    app._refresh_panels = _refresh_panels
+
+    if not any(binding[0] == "shift+tab" for binding in app.BINDINGS):
+        pytest.fail("Shift+Tab keybinding is not configured in SessionApp.BINDINGS")
+
+    try:
+        app.action_previous_graph()
+    except AttributeError:
+        pytest.fail("action_previous_graph not implemented yet")
+
+    assert runtime.previous_calls == 1
+    assert refreshed["calls"] == 1
