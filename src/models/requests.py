@@ -8,6 +8,13 @@ from pydantic import Field, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 from models.common import StrictBaseModel
+from utils.request_validators import (
+    CUSTOM_SEED_MAX_LENGTH,
+    CUSTOM_SEED_MIN_LENGTH,
+    SeedText,
+    validate_node_id,
+    validate_seed_text,
+)
 from utils.uuid_validation import ensure_valid_uuid
 
 __all__ = [
@@ -19,20 +26,9 @@ __all__ = [
     "GraphSwitchRequest",
 ]
 
-CUSTOM_SEED_MIN_LENGTH = 1
-CUSTOM_SEED_MAX_LENGTH = 255
-
 _ForkEdgeId = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
-]
-_SeedText = Annotated[
-    str,
-    StringConstraints(
-        strip_whitespace=True,
-        min_length=CUSTOM_SEED_MIN_LENGTH,
-        max_length=CUSTOM_SEED_MAX_LENGTH,
-    ),
 ]
 _ForkLabel = Annotated[
     str,
@@ -45,7 +41,7 @@ class GraphForkRequest(StrictBaseModel):
 
     source_graph_id: str = Field(min_length=1)
     fork_edge_id: _ForkEdgeId
-    custom_seed: _SeedText | None = None
+    custom_seed: SeedText | None = None
     label: _ForkLabel | None = None
 
     @field_validator("source_graph_id")
@@ -56,16 +52,7 @@ class GraphForkRequest(StrictBaseModel):
     @field_validator("custom_seed")
     @classmethod
     def _validate_custom_seed_boundaries(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        if len(value) < CUSTOM_SEED_MIN_LENGTH or len(value) > CUSTOM_SEED_MAX_LENGTH:
-            raise ValueError(
-                "custom_seed must be between "
-                f"{CUSTOM_SEED_MIN_LENGTH} and {CUSTOM_SEED_MAX_LENGTH} characters"
-            )
-
-        return value
+        return validate_seed_text(value, field_name="custom_seed")
 
 
 class ForkFromCurrentNodeRequest(StrictBaseModel):
@@ -83,7 +70,7 @@ class ForkFromCurrentNodeRequest(StrictBaseModel):
         min_length=1,
         description="Current node identifier to fork from",
     )
-    seed: _SeedText | None = Field(
+    seed: SeedText | None = Field(
         default=None,
         description="User-provided seed value; null means default behavior",
     )
@@ -96,25 +83,12 @@ class ForkFromCurrentNodeRequest(StrictBaseModel):
     @field_validator("current_node_id")
     @classmethod
     def _validate_current_node_id(cls, value: str) -> str:
-        if len(value.strip()) < 1:
-            raise ValueError("current_node_id must be non-empty")
-
-        return value
+        return validate_node_id(value, field_name="current_node_id")
 
     @field_validator("seed")
     @classmethod
     def _validate_seed(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        stripped = value.strip()
-        if len(stripped) < 1:
-            raise ValueError("seed must be at least 1 character when provided")
-
-        if len(stripped) > 255:
-            raise ValueError("seed must not exceed 255 characters")
-
-        return stripped
+        return validate_seed_text(value, field_name="seed")
 
 
 class GraphNavigationDirection(StrEnum):

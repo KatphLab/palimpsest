@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING, Annotated, TypeAlias
+from typing import TYPE_CHECKING, Annotated
 
 import networkx as nx
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -33,9 +33,9 @@ __all__ = [
 ]
 
 if TYPE_CHECKING:
-    GraphT: TypeAlias = nx.DiGraph[str]
+    type GraphT = nx.DiGraph[str]
 else:
-    GraphT: TypeAlias = nx.DiGraph
+    type GraphT = nx.DiGraph
 
 
 class StrictBaseModel(BaseModel):

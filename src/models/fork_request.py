@@ -4,18 +4,13 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import Field, StringConstraints, field_validator
-from typing_extensions import Annotated
+from pydantic import Field, field_validator
 
 from models.common import StrictBaseModel
+from utils.request_validators import SeedText, validate_node_id, validate_seed_text
 from utils.uuid_validation import ensure_valid_uuid
 
 __all__ = ["ForkRequest", "ForkRequestStatus"]
-
-_SeedText = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
-]
 
 
 class ForkRequestStatus(StrEnum):
@@ -46,7 +41,7 @@ class ForkRequest(StrictBaseModel):
         min_length=1,
         description="Selected node to fork from",
     )
-    seed: _SeedText | None = Field(
+    seed: SeedText | None = Field(
         default=None,
         description="User-provided seed; null means default seed behavior",
     )
@@ -67,22 +62,9 @@ class ForkRequest(StrictBaseModel):
     @field_validator("current_node_id")
     @classmethod
     def _validate_current_node_id(cls, value: str) -> str:
-        if len(value.strip()) < 1:
-            raise ValueError("current_node_id must be non-empty")
-
-        return value
+        return validate_node_id(value, field_name="current_node_id")
 
     @field_validator("seed")
     @classmethod
     def _validate_seed(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
-        stripped = value.strip()
-        if len(stripped) < 1:
-            raise ValueError("seed must be at least 1 character when provided")
-
-        if len(stripped) > 255:
-            raise ValueError("seed must not exceed 255 characters")
-
-        return stripped
+        return validate_seed_text(value, field_name="seed")
