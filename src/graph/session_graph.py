@@ -5,9 +5,7 @@ from __future__ import annotations
 import networkx as nx
 
 from graph.utils import get_graph_edge
-from models.common import (
-    ProtectionReason,
-)
+from models.common import ProtectionReason
 from models.graph import GraphEdge, GraphNode
 from utils.time import utc_now
 

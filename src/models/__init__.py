@@ -16,7 +16,7 @@ from models.graph import GraphEdge, GraphNode
 from models.graph_registry import GraphRegistry
 from models.graph_session import GraphSession
 from models.multi_graph_view import GraphListView, GraphPosition, MultiGraphViewState
-from models.mutation import MutationDecision, MutationProposal
+from models.mutation import MutationDecision, MutationProposal, ProposerStateModel
 from models.node import SceneNode
 from models.requests import (
     ForkFromCurrentNodeRequest,
@@ -62,6 +62,7 @@ __all__: list[str] = [
     "MutationDecision",
     "MutationProposal",
     "NodeCoherenceScore",
+    "ProposerStateModel",
     "RunningState",
     "SceneNode",
     "Session",

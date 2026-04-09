@@ -62,7 +62,7 @@ class _OpenAIMutationProposalProvider:
         """Return the raw text content from the LLM response."""
 
         response = self._client.invoke(prompt)
-        content = getattr(response, "content", None)
+        content = response.content
         if not isinstance(content, str):
             raise LLMMutationProviderError(
                 "mutation provider returned non-text content"

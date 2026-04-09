@@ -245,3 +245,37 @@ def test_inactive_graph_advance_continues_after_focus_switch() -> None:
     assert after is not None
     assert after.execution_status == ExecutionStatus.RUNNING
     assert after.last_activity_at > before.last_activity_at
+
+
+def test_ten_concurrent_graphs_keep_status_index_and_total_through_all_switches() -> (
+    None
+):
+    """With 10 running graphs, status index/total stays correct for every switch."""
+
+    executor = MultiGraphExecutor(max_parallel=10, auto_execute_interval=0)
+    total_graphs = 10
+    graph_ids = [
+        f"550e8400-e29b-41d4-a716-{index:012d}" for index in range(total_graphs)
+    ]
+
+    for graph_id in graph_ids:
+        executor.register_graph(GraphSession(graph_id=graph_id, current_node_id="n1"))
+        executor.start_graph(graph_id)
+
+    active_position = 1
+
+    # Tab navigation across a large sample of switch operations.
+    for _ in range(250):
+        executor.switch_to_next()
+        active_position = (active_position % total_graphs) + 1
+        snapshot = executor.get_status_snapshot()
+        assert snapshot.total_graphs == total_graphs
+        assert snapshot.active_position == active_position
+
+    # Shift+Tab navigation across the same volume of operations.
+    for _ in range(250):
+        executor.switch_to_previous()
+        active_position = ((active_position - 2) % total_graphs) + 1
+        snapshot = executor.get_status_snapshot()
+        assert snapshot.total_graphs == total_graphs
+        assert snapshot.active_position == active_position

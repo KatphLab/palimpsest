@@ -79,6 +79,22 @@ class GraphRegistry:
         self._active_index: int = 0
         self._lock = RLock()
 
+    def _enforce_single_active_session(self) -> None:
+        """Keep exactly one active GraphSession aligned to active_index."""
+
+        if not self._ordered_graph_ids:
+            self._active_index = 0
+            return
+
+        if self._active_index >= len(self._ordered_graph_ids):
+            self._active_index = 0
+
+        for entry in self._sessions.values():
+            entry.session.is_active = False
+
+        active_id = self._ordered_graph_ids[self._active_index]
+        self._sessions[active_id].session.is_active = True
+
     def register_session(self, session: GraphSession) -> GraphSession:
         """Register a GraphSession and return a defensive copy.
 
@@ -101,20 +117,21 @@ class GraphRegistry:
 
             # Create isolated copy
             session_copy = session.model_copy(deep=True)
+            session_copy.is_active = False
 
             # If first session, make it active
             if not self._ordered_graph_ids:
-                session_copy.is_active = True
                 self._active_index = 0
 
             # Store session
             self._sessions[session.graph_id] = _SessionEntry(session=session_copy)
             self._ordered_graph_ids.append(session.graph_id)
+            self._enforce_single_active_session()
 
             LOGGER.debug(
                 "Registered session %s (active=%s, total=%d)",
                 session.graph_id,
-                session_copy.is_active,
+                self._sessions[session.graph_id].session.is_active,
                 len(self._ordered_graph_ids),
             )
 
@@ -162,8 +179,9 @@ class GraphRegistry:
                 session=session_copy,
                 updated_at=utc_now(),
             )
+            self._enforce_single_active_session()
 
-            return session_copy.model_copy(deep=True)
+            return self._sessions[session.graph_id].session.model_copy(deep=True)
 
     def remove_session(self, graph_id: str) -> None:
         """Remove a GraphSession from the registry.
@@ -178,35 +196,23 @@ class GraphRegistry:
             if graph_id not in self._sessions:
                 return
 
-            was_active = self._sessions[graph_id].session.is_active
-
             # Remove from ordered list
             try:
                 index = self._ordered_graph_ids.index(graph_id)
                 self._ordered_graph_ids.pop(index)
+                if index < self._active_index:
+                    self._active_index -= 1
+                elif index == self._active_index and self._active_index >= len(
+                    self._ordered_graph_ids
+                ):
+                    self._active_index = 0
             except ValueError:
                 pass
 
             # Remove from sessions dict
             del self._sessions[graph_id]
 
-            # Handle active session removal
-            if was_active and self._ordered_graph_ids:
-                # Adjust active index if needed
-                if self._active_index >= len(self._ordered_graph_ids):
-                    self._active_index = 0
-
-                # Activate the session at the current index
-                new_active_id = self._ordered_graph_ids[self._active_index]
-                self._sessions[new_active_id].session.is_active = True
-
-                LOGGER.info(
-                    "Removed active session %s, new active: %s",
-                    graph_id,
-                    new_active_id,
-                )
-            elif not self._ordered_graph_ids:
-                self._active_index = 0
+            self._enforce_single_active_session()
 
             LOGGER.debug(
                 "Removed session %s (remaining=%d)",
@@ -255,7 +261,7 @@ class GraphRegistry:
 
             # Set new active
             self._active_index = self._ordered_graph_ids.index(graph_id)
-            self._sessions[graph_id].session.is_active = True
+            self._enforce_single_active_session()
 
             LOGGER.info(
                 "Activated graph session %s at index %d", graph_id, self._active_index
@@ -289,7 +295,7 @@ class GraphRegistry:
 
             # Activate new
             new_id = self._ordered_graph_ids[self._active_index]
-            self._sessions[new_id].session.is_active = True
+            self._enforce_single_active_session()
 
             LOGGER.debug(
                 "Switched to next graph: %s (index %d)", new_id, self._active_index
@@ -323,7 +329,7 @@ class GraphRegistry:
 
             # Activate new
             new_id = self._ordered_graph_ids[self._active_index]
-            self._sessions[new_id].session.is_active = True
+            self._enforce_single_active_session()
 
             LOGGER.debug(
                 "Switched to previous graph: %s (index %d)", new_id, self._active_index

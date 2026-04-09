@@ -782,6 +782,74 @@ class TestGraphRegistryDefensiveCopies:
 class TestGraphRegistryEdgeCases:
     """Tests for edge cases and boundary conditions."""
 
+    def test_register_session_normalizes_is_active_for_non_first_sessions(self) -> None:
+        """Only the indexed active graph should remain active after registration."""
+
+        registry = GraphRegistry()
+        first = GraphSession(
+            graph_id=str(uuid4()),
+            execution_status=ExecutionStatus.IDLE,
+        )
+        second = GraphSession(
+            graph_id=str(uuid4()),
+            execution_status=ExecutionStatus.IDLE,
+            is_active=True,
+        )
+
+        registry.register_session(first)
+        registry.register_session(second)
+
+        sessions = registry.list_sessions()
+        active_ids = [session.graph_id for session in sessions if session.is_active]
+
+        assert active_ids == [first.graph_id]
+        assert registry.get_active_session().graph_id == first.graph_id
+
+    def test_update_session_cannot_create_second_active_graph(self) -> None:
+        """Updating inactive graph with is_active=True must not break uniqueness."""
+
+        registry = GraphRegistry()
+        first = GraphSession(
+            graph_id=str(uuid4()),
+            execution_status=ExecutionStatus.IDLE,
+        )
+        second = GraphSession(
+            graph_id=str(uuid4()),
+            execution_status=ExecutionStatus.IDLE,
+        )
+        registry.register_session(first)
+        registry.register_session(second)
+
+        forced_active = registry.get_session(second.graph_id).model_copy(
+            update={"is_active": True}
+        )
+        registry.update_session(forced_active)
+
+        sessions = registry.list_sessions()
+        active_ids = [session.graph_id for session in sessions if session.is_active]
+
+        assert active_ids == [first.graph_id]
+        assert registry.get_active_session().graph_id == first.graph_id
+
+    def test_update_session_cannot_clear_only_active_flag(self) -> None:
+        """Active graph should remain active even if update sets is_active=False."""
+
+        registry = GraphRegistry()
+        session = GraphSession(
+            graph_id=str(uuid4()),
+            execution_status=ExecutionStatus.IDLE,
+        )
+        registry.register_session(session)
+
+        deactivated = registry.get_session(session.graph_id).model_copy(
+            update={"is_active": False}
+        )
+        registry.update_session(deactivated)
+
+        refreshed = registry.get_active_session()
+        assert refreshed.graph_id == session.graph_id
+        assert refreshed.is_active is True
+
     def test_register_many_sessions(self) -> None:
         """Registry should handle many sessions."""
         registry = GraphRegistry()

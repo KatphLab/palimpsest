@@ -5,11 +5,18 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, StringConstraints, model_validator
+from pydantic import ConfigDict, Field, StringConstraints, model_validator
 
-from models.common import MutationActionType, SafetyCheckResult, StrictBaseModel
+from graph.session_graph import SessionGraph
+from models.common import (
+    MutationActionType,
+    SafetyCheckResult,
+    StrictBaseModel,
+    UTCDateTime,
+)
+from models.session import Session
 
-__all__ = ["MutationDecision", "MutationProposal"]
+__all__ = ["MutationDecision", "MutationProposal", "ProposerStateModel"]
 
 _NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -41,3 +48,14 @@ class MutationDecision(MutationProposal):
             raise ValueError("rejected decisions require rejected_reason")
 
         return self
+
+
+class ProposerStateModel(StrictBaseModel):
+    """State carried through the mutation proposer subgraph."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    session: Session
+    session_graph: "SessionGraph"
+    activated_at: UTCDateTime
+    activation_candidate_id: str | None = Field(default=None)

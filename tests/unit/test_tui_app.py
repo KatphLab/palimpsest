@@ -8,6 +8,7 @@ from typing import Callable, cast
 from uuid import UUID, uuid4
 
 import pytest
+from textual.binding import Binding
 from textual.widgets import Static
 
 from graph.session_graph import SessionGraph
@@ -24,6 +25,18 @@ def _app_module() -> ModuleType:
 
 def _main_module() -> ModuleType:
     return import_module("main")
+
+
+def _binding_keys(binding: tuple[str, ...] | Binding) -> list[str]:
+    if isinstance(binding, Binding):
+        return [key.strip() for key in binding.key.split(",")]
+    return [binding[0]]
+
+
+def _binding_action(binding: tuple[str, ...] | Binding) -> str:
+    if isinstance(binding, Binding):
+        return binding.action
+    return binding[1]
 
 
 class _RuntimeStub:
@@ -722,7 +735,7 @@ def test_tab_keybinding_switches_to_next_graph() -> None:
 
     app._refresh_panels = _refresh_panels
 
-    if not any(binding[0] == "tab" for binding in app.BINDINGS):
+    if not any("tab" in _binding_keys(binding) for binding in app.BINDINGS):
         pytest.fail("Tab keybinding is not configured in SessionApp.BINDINGS")
 
     try:
@@ -747,7 +760,7 @@ def test_shift_tab_keybinding_switches_to_previous_graph() -> None:
 
     app._refresh_panels = _refresh_panels
 
-    if not any(binding[0] == "shift+tab" for binding in app.BINDINGS):
+    if not any("shift+tab" in _binding_keys(binding) for binding in app.BINDINGS):
         pytest.fail("Shift+Tab keybinding is not configured in SessionApp.BINDINGS")
 
     try:
@@ -757,6 +770,56 @@ def test_shift_tab_keybinding_switches_to_previous_graph() -> None:
 
     assert runtime.previous_calls == 1
     assert refreshed["calls"] == 1
+
+
+def test_graph_navigation_bindings_have_priority() -> None:
+    """Tab and Shift+Tab bindings should override default focus navigation."""
+
+    app_module = _app_module()
+
+    tab_binding = next(
+        (
+            binding
+            for binding in app_module.SessionApp.BINDINGS
+            if isinstance(binding, Binding) and "tab" in _binding_keys(binding)
+        ),
+        None,
+    )
+    previous_binding = next(
+        (
+            binding
+            for binding in app_module.SessionApp.BINDINGS
+            if isinstance(binding, Binding) and "shift+tab" in _binding_keys(binding)
+        ),
+        None,
+    )
+
+    assert isinstance(tab_binding, Binding)
+    assert isinstance(previous_binding, Binding)
+    assert tab_binding.priority is True
+    assert previous_binding.priority is True
+    assert "backtab" in _binding_keys(previous_binding)
+
+
+def test_graph_switch_with_single_graph_refreshes_footer_without_switching() -> None:
+    """Single-graph navigation should no-op while keeping footer status updated."""
+
+    app_module = _app_module()
+    runtime = _RuntimeWithGraphSwitchStub(graph_count=1)
+    app = app_module.SessionApp(runtime=runtime)
+    footer_refresh = {"calls": 0}
+
+    def _refresh_footer_status() -> None:
+        footer_refresh["calls"] += 1
+
+    app._refresh_footer_status = _refresh_footer_status
+
+    app.action_next_graph()
+    app.action_previous_graph()
+
+    assert runtime.next_calls == 0
+    assert runtime.previous_calls == 0
+    assert footer_refresh["calls"] == 2
 
 
 def test_tui_entry_path_opens_successfully_with_core_workflows(
@@ -793,7 +856,9 @@ def test_tui_entry_path_opens_successfully_with_core_workflows(
         "next_graph",
         "previous_graph",
     }
-    available_actions = {binding[1] for binding in app_module.SessionApp.BINDINGS}
+    available_actions = {
+        _binding_action(binding) for binding in app_module.SessionApp.BINDINGS
+    }
     assert expected_actions.issubset(available_actions)
 
 

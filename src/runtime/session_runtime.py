@@ -1522,10 +1522,10 @@ class SessionRuntime:
         )
 
         # Register the new session (appends to registry) - T024
-        registered_session = self.graph_registry.register_session(forked_session)
+        self.graph_registry.register_session(forked_session)
 
         # Set the forked session as active - T025
-        self.graph_registry.set_active_session(forked_graph_id)
+        active_session = self.graph_registry.set_active_session(forked_graph_id)
 
         # Calculate timing
         elapsed_ms = (perf_counter() - start_time) * 1000
@@ -1550,7 +1550,7 @@ class SessionRuntime:
             elapsed_ms,
         )
 
-        return registered_session
+        return active_session
 
     def _append_runtime_event(
         self,
@@ -1729,6 +1729,12 @@ class SessionRuntime:
 
         if event_type is _RuntimeEventType.UNLOCK_EDGE:
             return EventType.EDGE_UNLOCKED, None
+
+        if event_type is _RuntimeEventType.FORK_SESSION:
+            return EventType.SESSION_RESUMED, None
+
+        if event_type is _RuntimeEventType.GRAPH_SWITCH:
+            return EventType.SESSION_RESUMED, None
 
         if event_type is MutationEventKind.PROPOSED:
             return EventType.MUTATION_PROPOSED, None

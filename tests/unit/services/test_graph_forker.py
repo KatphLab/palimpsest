@@ -16,6 +16,7 @@ from models.graph_instance import GraphInstance, GraphLifecycleState
 from models.requests import GraphForkRequest, GraphSwitchRequest
 from persistence.graph_store import GraphStore
 from persistence.lineage_store import LineageStore
+from services.coherence_scorer import CoherenceScorer
 from services.graph_forker import GraphForker
 from services.graph_manager import GraphManager
 from services.graph_switcher import GraphSwitcher
@@ -222,6 +223,105 @@ def test_fork_request_rejects_low_coherence_transition(tmp_path: Path) -> None:
     assert is_valid is False
     assert error is not None
     assert error.error == ForkErrorCode.COHERENCE_VIOLATION
+
+
+def test_fork_request_uses_component_coherence_scoring_hooks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fork validation should score continuity from thematic/logical components."""
+
+    root_graph_id = "550e8400-e29b-41d4-a716-446655440000"
+    graph_store = GraphStore(root_dir=tmp_path)
+    graph_store.save(
+        build_graph_instance(
+            graph_id=root_graph_id,
+            nodes=("n1", "n2"),
+            edges=(
+                (
+                    "n1",
+                    "n2",
+                    {
+                        "edge_id": "edge_component_hooks",
+                        "thematic_continuity": 0.82,
+                        "logical_continuity": 0.88,
+                    },
+                ),
+            ),
+        )
+    )
+
+    captured_inputs: dict[str, tuple[float, float]] = {}
+
+    def _fake_score_transition(
+        self: CoherenceScorer,
+        *,
+        thematic_continuity: float,
+        logical_continuity: float,
+    ) -> float:
+        captured_inputs["continuity"] = (thematic_continuity, logical_continuity)
+        return 0.91
+
+    monkeypatch.setattr(
+        CoherenceScorer,
+        "score_transition",
+        _fake_score_transition,
+    )
+
+    forker = GraphForker(
+        graph_store=graph_store,
+        lineage_store=LineageStore(root_dir=tmp_path),
+    )
+    is_valid, error = forker.validate_fork_request(
+        GraphForkRequest(
+            source_graph_id=root_graph_id,
+            fork_edge_id="edge_component_hooks",
+        )
+    )
+
+    assert is_valid is True
+    assert error is None
+    assert captured_inputs["continuity"] == (0.82, 0.88)
+
+
+def test_fork_request_rejects_low_component_coherence_score(tmp_path: Path) -> None:
+    """Fork validation should reject low continuity computed from score hooks."""
+
+    root_graph_id = "550e8400-e29b-41d4-a716-446655440000"
+    graph_store = GraphStore(root_dir=tmp_path)
+    graph_store.save(
+        build_graph_instance(
+            graph_id=root_graph_id,
+            nodes=("n1", "n2"),
+            edges=(
+                (
+                    "n1",
+                    "n2",
+                    {
+                        "edge_id": "edge_low_components",
+                        "thematic_continuity": 0.50,
+                        "logical_continuity": 0.62,
+                    },
+                ),
+            ),
+        )
+    )
+
+    forker = GraphForker(
+        graph_store=graph_store,
+        lineage_store=LineageStore(root_dir=tmp_path),
+    )
+    is_valid, error = forker.validate_fork_request(
+        GraphForkRequest(
+            source_graph_id=root_graph_id,
+            fork_edge_id="edge_low_components",
+        )
+    )
+
+    assert is_valid is False
+    assert error is not None
+    assert error.error == ForkErrorCode.COHERENCE_VIOLATION
+    assert "received 0.560" in error.message
 
 
 def test_graph_limit_enforcement_returns_graph_limit_error(tmp_path: Path) -> None:

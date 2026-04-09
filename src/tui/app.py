@@ -6,6 +6,7 @@ from uuid import UUID
 
 from textual import work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, ScrollableContainer
 from textual.widgets import Header, Static
 
@@ -69,8 +70,13 @@ class SessionApp(App[None]):
         ("r", "resume_session", "Resume"),
         ("c", "continue_session", "Continue"),
         ("f", "fork_from_current_node", "Fork"),
-        ("tab", "next_graph", "Next graph"),
-        ("shift+tab", "previous_graph", "Previous graph"),
+        Binding("tab", "next_graph", "Next graph", priority=True),
+        Binding(
+            "shift+tab,backtab",
+            "previous_graph",
+            "Previous graph",
+            priority=True,
+        ),
     ]
 
     def __init__(self, runtime: SessionRuntime | None = None) -> None:
@@ -145,13 +151,10 @@ class SessionApp(App[None]):
     def action_fork_from_current_node(self) -> None:
         """Initiate fork flow from the current node when 'f' is pressed."""
 
-        # Check if there's an active session (use getattr for compatibility with stubs)
-        runtime_session = getattr(self.runtime, "session", None)
-        if runtime_session is None:
+        if self.runtime.session_id is None:
             self.notify("No active session. Start a session first.", severity="warning")
             return
 
-        # Create fork request from current context
         fork_request = self.runtime.create_fork_request(seed=None)
 
         if fork_request is None:
@@ -299,6 +302,7 @@ class SessionApp(App[None]):
         """Handle graph switching and in-cycle status updates."""
 
         graph_count = self.runtime.graph_count
+
         if graph_count <= 1:
             self._refresh_footer_status()
             return
@@ -379,8 +383,6 @@ class SessionApp(App[None]):
                 session=self.runtime.session,
             )
         )
-        lines.extend(
-            build_mutation_log_lines(event_log=getattr(self.runtime, "event_log", None))
-        )
+        lines.extend(build_mutation_log_lines(event_log=self.runtime.event_log))
 
         return "\n".join(lines)

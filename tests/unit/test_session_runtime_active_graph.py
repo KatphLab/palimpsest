@@ -206,6 +206,30 @@ def test_session_runtime_register_graph_session_adds_to_registry() -> None:
     assert result.is_active is True
 
 
+def test_session_runtime_register_graph_session_keeps_unique_active_graph() -> None:
+    """Registering additional graphs must not create multiple active sessions."""
+
+    runtime = SessionRuntime(session_graph=SessionGraph())
+    first = GraphSession(
+        graph_id="550e8400-e29b-41d4-a716-446655440000",
+        current_node_id="node-1",
+        execution_status=ExecutionStatus.IDLE,
+    )
+    second = GraphSession(
+        graph_id="550e8400-e29b-41d4-a716-446655440001",
+        current_node_id="node-2",
+        execution_status=ExecutionStatus.RUNNING,
+        is_active=True,
+    )
+
+    runtime.register_graph_session(first)
+    runtime.register_graph_session(second)
+
+    sessions = runtime.graph_registry.list_sessions()
+    active_ids = [session.graph_id for session in sessions if session.is_active]
+    assert active_ids == [first.graph_id]
+
+
 def test_session_runtime_switch_to_next_graph_updates_active() -> None:
     """Should switch to next graph and update active context."""
     runtime, _, second_session_id, _ = _build_runtime_with_two_switchable_graphs()
@@ -398,6 +422,35 @@ def test_session_runtime_create_fork_request_returns_none_when_no_current_node()
     result = runtime.create_fork_request(seed="custom-seed")
 
     assert result is None
+
+
+def test_session_runtime_fork_from_current_node_returns_active_session_and_preserves_uniqueness() -> (
+    None
+):
+    """Fork should return the newly active graph and keep a single active graph."""
+
+    runtime = SessionRuntime(session_graph=SessionGraph())
+    source = GraphSession(
+        graph_id="550e8400-e29b-41d4-a716-446655440000",
+        current_node_id="node-1",
+        execution_status=ExecutionStatus.RUNNING,
+    )
+    runtime.register_graph_session(source)
+
+    forked = runtime.fork_from_current_node(
+        ForkFromCurrentNodeRequest(
+            active_graph_id=source.graph_id,
+            current_node_id="node-1",
+            seed="branch-seed",
+        )
+    )
+
+    assert forked is not None
+    assert forked.is_active is True
+
+    sessions = runtime.graph_registry.list_sessions()
+    active_ids = [session.graph_id for session in sessions if session.is_active]
+    assert active_ids == [forked.graph_id]
 
 
 def test_session_runtime_create_graph_switch_request_next() -> None:

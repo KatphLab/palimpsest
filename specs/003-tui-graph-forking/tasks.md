@@ -187,35 +187,35 @@
 
 ### Documentation
 
-- [ ] T065 [P] Update README.md with TUI-only entrypoint instructions
-- [ ] T066 [P] Update quickstart.md with multi-graph workflow examples
-- [ ] T067 [P] Document keybindings (`f`, `Tab`, `Shift+Tab`) in docs/
+- [x] T065 [P] Update README.md with TUI-only entrypoint instructions
+- [x] T066 [P] Update quickstart.md with multi-graph workflow examples
+- [x] T067 [P] Document keybindings (`f`, `Tab`, `Shift+Tab`) in docs/
 
 ### Code Quality & Testing
 
-- [ ] T068 [P] Add additional unit tests for edge cases in tests/unit/test_tui_app.py
-- [ ] T069 [P] Add unit tests for graph_registry edge cases in tests/unit/services/
-- [ ] T070 [P] Add integration tests for 10 concurrent graphs scenario per SC-003
-- [ ] T071 Run full test suite: uv run pytest tests/ -v
-- [ ] T072 Verify test coverage >=80% for new code
+- [x] T068 [P] Add additional unit tests for edge cases in tests/unit/test_tui_app.py
+- [x] T069 [P] Add unit tests for graph_registry edge cases in tests/unit/services/
+- [x] T070 [P] Add integration tests for 10 concurrent graphs scenario per SC-003
+- [x] T071 Run full test suite: uv run pytest tests/ -v
+- [x] T072 Verify test coverage >=80% for new code
 
 ### Performance & Budget
 
-- [ ] T073 Verify graph switch feedback <300ms with 10 concurrent graphs per CA-005
-- [ ] T074 Verify fork confirmation <1s under normal conditions per CA-005
-- [ ] T075 [P] Add performance regression tests for latency thresholds
+- [x] T073 Verify graph switch feedback <300ms with 10 concurrent graphs per CA-005
+- [x] T074 Verify fork confirmation <1s under normal conditions per CA-005
+- [x] T075 [P] Add performance regression tests for latency thresholds
 
 ### Safety & Observability
 
-- [ ] T076 [P] Verify fork/switch actions emit to command/runtime event logs
-- [ ] T077 Verify source graph isolation at fork boundary per CA-002
-- [ ] T078 Verify active graph uniqueness invariant in runtime
-- [ ] T079 Verify coherence scoring hooks for fork narrative continuity per CA-001
+- [x] T076 [P] Verify fork/switch actions emit to command/runtime event logs
+- [x] T077 Verify source graph isolation at fork boundary per CA-002
+- [x] T078 Verify active graph uniqueness invariant in runtime
+- [x] T079 Verify coherence scoring hooks for fork narrative continuity per CA-001
 
 ### Quickstart Validation
 
-- [ ] T080 Execute quickstart.md steps 1-7 and verify all pass
-- [ ] T081 Validate all acceptance scenarios from spec.md execute correctly
+- [x] T080 Execute quickstart.md steps 1-7 and verify all pass
+- [x] T081 Validate all acceptance scenarios from spec.md execute correctly
 
 ---
 

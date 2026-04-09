@@ -63,17 +63,41 @@ Expected:
 - Inactive graphs continue progressing while off-screen.
 - Status line always reflects only the active graph's running state.
 
+## Multi-Graph Workflow Examples
+
+### Example A: Baseline + Two Forks
+
+1. Start Graph 1 with `s` and advance 2-3 cycles with `c`.
+2. Press `f` to fork Graph 2 from the current node.
+3. Press `f` again in Graph 2 to create Graph 3.
+4. Cycle `Tab` through Graphs 1 -> 2 -> 3 -> 1.
+5. Cycle `Shift+Tab` in reverse order.
+
+Expected:
+- The active graph index wraps correctly in both directions.
+- Each graph preserves its own timeline and node progression.
+
+### Example B: Compare Divergent Branches
+
+1. In Graph 1, keep advancing with `c`.
+2. Switch to Graph 2 with `Tab` and run separate advances.
+3. Switch between Graph 1 and Graph 2 with `Tab` / `Shift+Tab`.
+
+Expected:
+- Graphs diverge based on per-graph actions after fork.
+- Switching graphs does not reset or merge state.
+
 ## 6) Verify Entrypoint and Behavioral Tests
 
 ```bash
-uv run pytest tests/unit/test_tui_app.py tests/unit/test_tui_widgets.py -v
+uv run pytest tests/unit/test_tui_app.py tests/unit/services/test_graph_switcher.py -v
 uv run pytest tests/integration/test_parallel_execution.py tests/integration/test_multi_graph_view.py -v
 ```
 
 Contract verification:
 
 ```bash
-uv run pytest tests/contract/test_multi_graph_view.py -v
+uv run pytest tests/contracts/test_topology_control_commands.py -v
 ```
 
 ## 7) Budget Verification

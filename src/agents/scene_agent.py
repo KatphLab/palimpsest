@@ -68,7 +68,7 @@ class OpenAIChatSceneGenerationProvider(SceneGenerationProvider):
             f"{seed_text}"
         )
         response = self._client.invoke(prompt)
-        content = getattr(response, "content", None)
+        content = response.content
         if not isinstance(content, str) or not content.strip():
             raise ValueError("scene generation returned empty content")
 

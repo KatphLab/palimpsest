@@ -39,10 +39,11 @@ make install
 
 ```bash
 # Start the terminal UI (sole supported entrypoint)
-uv run python -m main
+PYTHONPATH=src uv run python -m main
 ```
 
-The legacy graph CLI entrypoint in `src/cli/main.py` is disabled.
+Run this command from the repository root. No alternate CLI entrypoint is
+supported.
 
 ## Using the Application
 

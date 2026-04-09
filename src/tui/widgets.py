@@ -149,8 +149,11 @@ class ShortcutFooterBar(Static):
 class _CommandRuntime(Protocol):
     """Runtime contract for dispatching terminal commands."""
 
+    session_id: UUID | None
+
     def handle_command(self, command: TerminalCommand) -> CommandResult:
         """Dispatch a terminal command."""
+        ...
 
 
 class _SessionSwitchRuntime(Protocol):
@@ -163,8 +166,7 @@ class _SessionSwitchRuntime(Protocol):
 def _active_session_id(runtime: _CommandRuntime) -> UUID | None:
     """Return the runtime session identifier when available."""
 
-    session_id = getattr(runtime, "session_id", None)
-    return session_id if isinstance(session_id, UUID) else None
+    return runtime.session_id
 
 
 def _command_id(prefix: str) -> str:
