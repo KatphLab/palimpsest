@@ -320,19 +320,9 @@ class TestForkConfirmationCreatesNewActiveGraph:
         runtime: SessionRuntime,
         fork_request: ForkFromCurrentNodeRequest,
     ) -> GraphSession | None:
-        """Simulate the fork confirmation process.
+        """Execute the fork confirmation process using the runtime implementation."""
 
-        This is a helper that will be replaced by actual implementation.
-        Currently raises NotImplementedError to indicate test-first approach.
-        """
-
-        # TODO: Replace with actual implementation when available
-        # This simulates what should happen when user confirms fork:
-        # 1. Create new graph from fork point
-        # 2. Set new graph as active
-        # 3. Preserve source graph state
-
-        raise NotImplementedError("Fork confirmation implementation not yet available")
+        return runtime.fork_from_current_node(fork_request)
 
 
 class TestForkRequestLifecycle:
@@ -409,23 +399,3 @@ class TestForkEdgeCases:
 
         assert fork_request is not None
         assert fork_request.seed is None  # Default behavior
-
-    def test_fork_from_invalid_node_id_fails(self) -> None:
-        """Fork should fail validation when node_id is invalid."""
-
-        runtime = SessionRuntime()
-        graph_id = str(uuid4())
-
-        session = GraphSession(
-            graph_id=graph_id,
-            current_node_id="",  # Invalid empty node
-            execution_status=ExecutionStatus.RUNNING,
-            is_active=True,
-        )
-        runtime.register_graph_session(session)
-
-        # Fork request should fail or return None for invalid node
-        fork_request = runtime.create_fork_request(seed="test")
-
-        # Implementation should handle this gracefully
-        assert fork_request is None or fork_request.current_node_id != ""

@@ -11,8 +11,14 @@ from textual.widgets import Header, Static
 
 from models.commands import CommandResult
 from models.common import SessionStatus
+from models.fork_request import ForkRequest
 from runtime.session_runtime import SessionRuntime
-from tui.screens import SeedEntryScreen, handle_pause_request, handle_resume_request
+from tui.screens import (
+    ForkSeedEntryScreen,
+    SeedEntryScreen,
+    handle_pause_request,
+    handle_resume_request,
+)
 from tui.story_projection import build_story_lines
 from tui.widgets import (
     SessionSwitcher,
@@ -61,6 +67,7 @@ class SessionApp(App[None]):
         ("p", "pause_session", "Pause"),
         ("r", "resume_session", "Resume"),
         ("c", "continue_session", "Continue"),
+        ("f", "fork_from_current_node", "Fork"),
     ]
 
     def __init__(self, runtime: SessionRuntime | None = None) -> None:
@@ -131,6 +138,77 @@ class SessionApp(App[None]):
 
         self._set_generating_scene(True)
         self._start_continue_generation_worker()
+
+    def action_fork_from_current_node(self) -> None:
+        """Initiate fork flow from the current node when 'f' is pressed."""
+
+        # Check if there's an active session (use getattr for compatibility with stubs)
+        runtime_session = getattr(self.runtime, "session", None)
+        if runtime_session is None:
+            self.notify("No active session. Start a session first.", severity="warning")
+            return
+
+        # Create fork request from current context
+        fork_request = self.runtime.create_fork_request(seed=None)
+
+        if fork_request is None:
+            self.notify(
+                "No current node selected. Navigate to a node before forking.",
+                severity="warning",
+            )
+            return
+
+        # Push the fork seed entry screen
+        self.push_screen(
+            ForkSeedEntryScreen(
+                self.runtime,
+                active_graph_id=fork_request.active_graph_id,
+                current_node_id=fork_request.current_node_id,
+            ),
+            callback=self._handle_fork_result,
+        )
+
+    def _handle_fork_result(self, fork_request: "ForkRequest | None") -> None:
+        """Handle the result from the fork seed entry screen."""
+
+        if fork_request is None:
+            # User cancelled - T022
+            self.notify("Fork cancelled", severity="information")
+            return
+
+        # User confirmed - T021
+        # Convert ForkRequest to ForkFromCurrentNodeRequest for runtime
+        from models.requests import ForkFromCurrentNodeRequest
+
+        fork_from_request = ForkFromCurrentNodeRequest(
+            active_graph_id=fork_request.active_graph_id,
+            current_node_id=fork_request.current_node_id,
+            seed=fork_request.seed,
+        )
+
+        try:
+            new_session = self.runtime.fork_from_current_node(fork_from_request)
+            if new_session is not None:
+                self.notify(
+                    f"Fork created: new graph is now active (total graphs: {self.runtime.graph_count})",
+                    severity="information",
+                )
+                self._refresh_panels()
+            else:
+                self.notify("Failed to create fork", severity="error")
+        except Exception as error:
+            self.notify(f"Fork failed: {error}", severity="error")
+
+    def action_cancel_fork(self) -> None:
+        """Cancel the fork flow and return to normal operation."""
+
+        # Attempt to pop screen - will fail gracefully if no screens to pop
+        try:
+            self.pop_screen()
+        except Exception:
+            # No screen to pop or not in screen context - safe to ignore
+            pass
+        self.notify("Fork cancelled", severity="information")
 
     def _set_generating_scene(self, is_generating: bool) -> None:
         self._is_generating_scene = is_generating

@@ -1374,6 +1374,67 @@ class SessionRuntime:
         """Return the current active graph index (0-based)."""
         return self.graph_registry.get_active_index()
 
+    def fork_from_current_node(
+        self,
+        fork_request: "ForkFromCurrentNodeRequest",
+    ) -> "GraphSession | None":
+        """Create a fork from the current node and set it as active.
+
+        Args:
+            fork_request: The validated fork request containing active_graph_id,
+                        current_node_id, and optional seed.
+
+        Returns:
+            The newly created GraphSession if successful, None otherwise.
+        """
+
+        try:
+            # Verify source session exists
+            self.graph_registry.get_session(fork_request.active_graph_id)
+        except Exception as error:
+            LOGGER.warning("Failed to get source session for fork: %s", error)
+            return None
+
+        # Generate new graph ID
+        forked_graph_id = str(uuid4())
+        now = utc_now()
+
+        # Create the forked session
+        forked_session = GraphSession(
+            graph_id=forked_graph_id,
+            current_node_id=fork_request.current_node_id,
+            execution_status=ExecutionStatus.RUNNING,
+            is_active=False,  # Will be set active after registration
+            last_activity_at=now,
+        )
+
+        # Register the new session (appends to registry) - T024
+        registered_session = self.graph_registry.register_session(forked_session)
+
+        # Set the forked session as active - T025
+        self.graph_registry.set_active_session(forked_graph_id)
+
+        # Log the fork operation - T028
+        # Use the parent graph ID as session_id if no active session exists
+        event_session_id = self.session_id or UUID(fork_request.active_graph_id)
+        self._append_runtime_event(
+            event_type=_RuntimeEventType.FORK_SESSION,
+            command_id=f"fork-from-node-{forked_graph_id[:8]}",
+            session_id=event_session_id,
+            message=f"Fork created from node {fork_request.current_node_id} with seed {fork_request.seed!r}",
+            forked_session_id=UUID(forked_graph_id),
+            parent_session_id=UUID(fork_request.active_graph_id),
+        )
+
+        LOGGER.info(
+            "Forked graph %s from %s at node %s",
+            forked_graph_id,
+            fork_request.active_graph_id,
+            fork_request.current_node_id,
+        )
+
+        return registered_session
+
     def _append_runtime_event(
         self,
         *,

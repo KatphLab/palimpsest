@@ -76,16 +76,16 @@
 
 ### Implementation for User Story 1
 
-- [ ] T019 [US1] Add `f` keybinding in src/tui/app.py to initiate fork flow
-- [ ] T020 [US1] Create fork seed prompt screen in src/tui/screens.py
-- [ ] T021 [US1] Implement fork confirmation handler in src/tui/app.py
-- [ ] T022 [US1] Implement fork cancel handler in src/tui/app.py
-- [ ] T023 [US1] Create graph forking service in src/services/graph_forker.py
-- [ ] T024 [US1] Integrate forking with graph_registry.py to append new graph
-- [ ] T025 [US1] Update session_runtime.py to set forked graph as active
-- [ ] T026 [US1] Add validation for current_node_id exists before fork in src/tui/app.py
-- [ ] T027 [US1] Add error handling for fork flow with no current node in src/tui/app.py
-- [ ] T028 [US1] Add logging for fork operations in src/runtime/session_runtime.py
+- [x] T019 [US1] Add `f` keybinding in src/tui/app.py to initiate fork flow
+- [x] T020 [US1] Create fork seed prompt screen in src/tui/screens.py
+- [x] T021 [US1] Implement fork confirmation handler in src/tui/app.py
+- [x] T022 [US1] Implement fork cancel handler in src/tui/app.py
+- [x] T023 [US1] Create graph forking service in src/services/graph_forker.py
+- [x] T024 [US1] Integrate forking with graph_registry.py to append new graph
+- [x] T025 [US1] Update session_runtime.py to set forked graph as active
+- [x] T026 [US1] Add validation for current_node_id exists before fork in src/tui/app.py
+- [x] T027 [US1] Add error handling for fork flow with no current node in src/tui/app.py
+- [x] T028 [US1] Add logging for fork operations in src/runtime/session_runtime.py
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
