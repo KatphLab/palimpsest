@@ -2,25 +2,14 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
-
 from pydantic import Field, field_validator
 
 from models.common import StrictBaseModel, UTCDateTime
+from models.execution import ExecutionStatus
 from utils.time import utc_now
 from utils.uuid_validation import ensure_valid_uuid
 
-__all__ = ["GraphSession", "ExecutionStatus"]
-
-
-class ExecutionStatus(StrEnum):
-    """Runtime execution states for a graph session."""
-
-    IDLE = "idle"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
+__all__ = ["GraphSession"]
 
 
 class GraphSession(StrictBaseModel):

@@ -8,7 +8,7 @@ from pydantic import Field, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 from models.common import StrictBaseModel, UTCDateTime
-from models.graph_session import ExecutionStatus
+from models.execution import ExecutionStatus
 from models.multi_graph_view import GraphSummary
 from utils.uuid_validation import ensure_valid_uuid
 

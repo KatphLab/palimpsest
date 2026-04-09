@@ -8,13 +8,11 @@ from uuid import uuid4
 
 import pytest
 
+from models.execution import ExecutionStatus
 from models.graph_registry import GraphRegistry as GraphRegistryModel
-from models.graph_session import ExecutionStatus, GraphSession
-from runtime.graph_registry import (
-    GraphNotFoundError,
-    GraphRegistry,
-    NoActiveGraphError,
-)
+from models.graph_session import GraphSession
+from models.status_snapshot import StatusSnapshot
+from runtime.graph_registry import GraphNotFoundError, GraphRegistry, NoActiveGraphError
 
 
 class TestGraphRegistrySessionManagement:
@@ -585,9 +583,10 @@ class TestGraphRegistryStatusSnapshot:
 
         snapshot = registry.get_status_snapshot()
 
-        assert snapshot["active_position"] == 2
-        assert snapshot["total_graphs"] == 2
-        assert snapshot["active_running_state"] == ExecutionStatus.RUNNING
+        assert isinstance(snapshot, StatusSnapshot)
+        assert snapshot.active_position == 2
+        assert snapshot.total_graphs == 2
+        assert snapshot.active_running_state == ExecutionStatus.RUNNING
 
     def test_get_status_snapshot_empty_registry(self) -> None:
         """get_status_snapshot should handle empty registry."""
@@ -595,9 +594,10 @@ class TestGraphRegistryStatusSnapshot:
 
         snapshot = registry.get_status_snapshot()
 
-        assert snapshot["active_position"] == 0
-        assert snapshot["total_graphs"] == 0
-        assert snapshot["active_running_state"] == ExecutionStatus.IDLE
+        assert isinstance(snapshot, StatusSnapshot)
+        assert snapshot.active_position == 1  # Must be >=1 per model validator
+        assert snapshot.total_graphs == 0
+        assert snapshot.active_running_state == ExecutionStatus.IDLE
 
     def test_get_status_snapshot_single_graph(self) -> None:
         """get_status_snapshot should handle single graph."""
@@ -610,9 +610,10 @@ class TestGraphRegistryStatusSnapshot:
 
         snapshot = registry.get_status_snapshot()
 
-        assert snapshot["active_position"] == 1
-        assert snapshot["total_graphs"] == 1
-        assert snapshot["active_running_state"] == ExecutionStatus.COMPLETED
+        assert isinstance(snapshot, StatusSnapshot)
+        assert snapshot.active_position == 1
+        assert snapshot.total_graphs == 1
+        assert snapshot.active_running_state == ExecutionStatus.COMPLETED
 
 
 class TestGraphRegistryThreadSafety:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from models.execution import ExecutionStatus
 from models.export import (
     ExportArtifact,
     ExportEdge,
@@ -13,7 +14,7 @@ from models.export import (
 from models.fork_request import ForkRequest, ForkRequestStatus
 from models.graph import GraphEdge, GraphNode
 from models.graph_registry import GraphRegistry
-from models.graph_session import ExecutionStatus, GraphSession
+from models.graph_session import GraphSession
 from models.multi_graph_view import GraphListView, GraphPosition, MultiGraphViewState
 from models.mutation import MutationDecision, MutationProposal
 from models.node import SceneNode

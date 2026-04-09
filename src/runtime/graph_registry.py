@@ -13,9 +13,11 @@ from threading import RLock
 from pydantic import ConfigDict
 
 from models.common import StrictBaseModel, UTCDateTime
+from models.execution import ExecutionStatus
 from models.graph_instance import GraphInstance
 from models.graph_registry import GraphRegistry as GraphRegistryModel
-from models.graph_session import ExecutionStatus, GraphSession
+from models.graph_session import GraphSession
+from models.status_snapshot import StatusSnapshot
 from utils.time import utc_now
 from utils.uuid_validation import ensure_valid_uuid
 
@@ -363,27 +365,27 @@ class GraphRegistry:
                 active_index=self._active_index,
             )
 
-    def get_status_snapshot(self) -> dict[str, object]:
+    def get_status_snapshot(self) -> StatusSnapshot:
         """Get a snapshot of registry status for TUI rendering.
 
         Returns:
-            Dictionary with active_position, total_graphs, and active_running_state
+            StatusSnapshot with active_position, total_graphs, and active_running_state
         """
         with self._lock:
             total = len(self._ordered_graph_ids)
             if total == 0:
-                return {
-                    "active_position": 0,
-                    "total_graphs": 0,
-                    "active_running_state": ExecutionStatus.IDLE,
-                }
+                return StatusSnapshot(
+                    active_position=1,  # Must be >=1 per model validator
+                    total_graphs=0,
+                    active_running_state=ExecutionStatus.IDLE,
+                )
 
             active_session = self._sessions[
                 self._ordered_graph_ids[self._active_index]
             ].session
 
-            return {
-                "active_position": self._active_index + 1,  # 1-based for display
-                "total_graphs": total,
-                "active_running_state": active_session.execution_status,
-            }
+            return StatusSnapshot(
+                active_position=self._active_index + 1,  # 1-based for display
+                total_graphs=total,
+                active_running_state=active_session.execution_status,
+            )

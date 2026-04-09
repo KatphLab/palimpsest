@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import Field, model_validator
 
 from models.common import StrictBaseModel
-from models.graph_session import ExecutionStatus
+from models.execution import ExecutionStatus
 
 __all__ = ["StatusSnapshot"]
 

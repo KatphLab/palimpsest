@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from models.graph_session import ExecutionStatus
+from models.execution import ExecutionStatus
 from models.status_snapshot import StatusSnapshot
 
 

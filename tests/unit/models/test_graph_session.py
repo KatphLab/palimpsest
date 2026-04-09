@@ -5,7 +5,8 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from models.graph_session import ExecutionStatus, GraphSession
+from models.execution import ExecutionStatus
+from models.graph_session import GraphSession
 
 
 class TestGraphSession:
