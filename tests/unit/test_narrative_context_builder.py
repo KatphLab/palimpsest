@@ -25,6 +25,7 @@ from models.narrative_context import (
     NarrativeSceneContext,
 )
 from models.session import Session
+from utils.narrative_context_builder import NarrativeContextBuilder
 
 
 def _build_session(
@@ -109,8 +110,6 @@ def _add_edge(
 
 def test_build_collects_the_last_two_scenes_in_narrative_order() -> None:
     """The builder should return the last two scenes in path order."""
-
-    from agents.narrative_context_builder import NarrativeContextBuilder
 
     session = _build_session(active_node_ids=["seed", "scene-2"])
     session_graph = SessionGraph()
@@ -202,7 +201,7 @@ def test_build_collects_the_last_two_scenes_in_narrative_order() -> None:
 def test_build_pads_a_single_scene_context() -> None:
     """The builder should gracefully pad when only one scene exists."""
 
-    from agents.narrative_context_builder import NarrativeContextBuilder
+    from utils.narrative_context_builder import NarrativeContextBuilder
 
     session = _build_session(active_node_ids=["seed", "scene-1"])
     session_graph = SessionGraph()
@@ -257,8 +256,6 @@ def test_build_rejects_missing_or_blank_activation_candidate_ids(
 ) -> None:
     """The builder should require a usable activation candidate id."""
 
-    from agents.narrative_context_builder import NarrativeContextBuilder
-
     session = _build_session(active_node_ids=["seed", "scene-1"])
     session_graph = SessionGraph()
     session_id = session.session_id
@@ -288,8 +285,6 @@ def test_build_rejects_missing_or_blank_activation_candidate_ids(
 
 def test_build_does_not_mutate_the_session_or_graph() -> None:
     """The builder must read state without changing it."""
-
-    from agents.narrative_context_builder import NarrativeContextBuilder
 
     session = _build_session(graph_version=7, active_node_ids=["seed", "scene-1"])
     session_graph = SessionGraph()

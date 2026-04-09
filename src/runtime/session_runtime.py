@@ -19,7 +19,6 @@ from pydantic import ConfigDict, Field
 from agents.llm_mutation_proposer import LLMMutationProposer, LLMMutationProposerError
 from agents.mutation_agent import MutationAgent
 from agents.mutation_engine import MutationEngine
-from agents.narrative_context_builder import NarrativeContextBuilder
 from agents.scene_agent import SceneAgent
 from config.env import (
     _DEFAULT_GLOBAL_CONSISTENCY_CHECK_INTERVAL_MS,
@@ -81,6 +80,7 @@ from runtime.consistency import (
 from runtime.event_log import EventLog
 from runtime.exporter import build_export_artifact, write_export_artifact
 from runtime.graph_registry import GraphNotFoundError, GraphRegistry, NoActiveGraphError
+from utils.narrative_context_builder import NarrativeContextBuilder
 from utils.time import utc_now
 
 __all__ = ["SessionRuntime"]
