@@ -68,11 +68,11 @@
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T014 [P] [US1] Contract test for ForkFromCurrentNodeRequest in tests/contract/test_fork_request.py
-- [ ] T015 [P] [US1] Unit test for `f` keybinding initiating fork flow in tests/unit/test_tui_app.py
-- [ ] T016 [P] [US1] Unit test for fork cancel behavior in tests/unit/test_tui_app.py
-- [ ] T017 [P] [US1] Integration test for fork-from-current-node flow in tests/integration/test_fork_flow.py
-- [ ] T018 [P] [US1] Integration test for fork confirmation creates new active graph in tests/integration/test_fork_flow.py
+- [X] T014 [P] [US1] Contract test for ForkFromCurrentNodeRequest in tests/contract/test_fork_request.py
+- [X] T015 [P] [US1] Unit test for `f` keybinding initiating fork flow in tests/unit/test_tui_app.py
+- [X] T016 [P] [US1] Unit test for fork cancel behavior in tests/unit/test_tui_app.py
+- [X] T017 [P] [US1] Integration test for fork-from-current-node flow in tests/integration/test_fork_flow.py
+- [X] T018 [P] [US1] Integration test for fork confirmation creates new active graph in tests/integration/test_fork_flow.py
 
 ### Implementation for User Story 1
 

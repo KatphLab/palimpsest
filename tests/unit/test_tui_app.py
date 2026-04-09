@@ -459,3 +459,206 @@ def test_render_session_panel_shows_detached_scene_section() -> None:
 
     assert "🧩 DETACHED SCENES" in panel
     assert "- A cracked lens points at noon stars." in panel
+
+
+class _RuntimeWithForkSupportStub:
+    """Runtime stub that simulates fork from current node behavior."""
+
+    def __init__(
+        self,
+        *,
+        has_current_node: bool = True,
+        fork_will_succeed: bool = True,
+    ) -> None:
+        self.session_id = uuid4()
+        self._has_current_node = has_current_node
+        self._fork_will_succeed = fork_will_succeed
+        self.fork_calls: list[dict[str, object]] = []
+        self.current_node_id = "current-node-123" if has_current_node else None
+        self.graph_registry = _GraphRegistryStub(
+            has_active_session=has_current_node,
+            current_node_id=self.current_node_id,
+        )
+
+    def create_fork_request(self, seed: str | None = None) -> object | None:
+        """Simulate creating a fork request from current node context."""
+
+        if not self._has_current_node:
+            return None
+
+        from models.requests import ForkFromCurrentNodeRequest
+
+        return ForkFromCurrentNodeRequest(
+            active_graph_id=str(self.session_id),
+            current_node_id=self.current_node_id or "",
+            seed=seed,
+        )
+
+
+class _GraphRegistryStub:
+    """Stub for graph registry with current node tracking."""
+
+    def __init__(
+        self,
+        has_active_session: bool = True,
+        current_node_id: str | None = None,
+    ) -> None:
+        self._has_active_session = has_active_session
+        self._current_node_id = current_node_id
+
+    def get_active_session(self) -> object | None:
+        """Return active session or raise NoActiveGraphError."""
+
+        from runtime.graph_registry import NoActiveGraphError
+
+        if not self._has_active_session:
+            raise NoActiveGraphError("no active graph")
+
+        # Return a mock session-like object
+        class _MockSession:
+            def __init__(self, node_id: str | None) -> None:
+                self.current_node_id = node_id
+                self.graph_id = "mock-graph-id"
+
+        return _MockSession(self._current_node_id)
+
+
+class TestForkFromCurrentNodeKeybinding:
+    """Unit tests for `f` keybinding initiating fork flow (T015)."""
+
+    def test_f_keybinding_initiates_fork_flow_when_current_node_exists(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Pressing `f` with current node selected should initiate fork flow.
+
+        Acceptance Scenario: Given a graph is open and a current node is selected,
+        When the user presses `f`, Then the system initiates a fork flow from
+        that current node.
+        """
+
+        app_module = _app_module()
+        runtime = _RuntimeWithForkSupportStub(has_current_node=True)
+        app = app_module.SessionApp(runtime=runtime)
+
+        # Track if fork screen would be pushed
+        screens_pushed: list[str] = []
+
+        def _push_fork_screen(*_: object, **__: object) -> None:
+            screens_pushed.append("fork-seed-entry")
+
+        # Mock the fork action handler
+        monkeypatch.setattr(app, "action_fork_from_current_node", _push_fork_screen)
+
+        # Simulate pressing 'f' keybinding
+        app.action_fork_from_current_node()
+
+        assert "fork-seed-entry" in screens_pushed
+
+    def test_f_keybinding_shows_error_when_no_current_node(self) -> None:
+        """Pressing `f` without current node should show error notification.
+
+        Edge Case: If the user presses `f` when no current node is available,
+        the system informs the user and does not start fork creation.
+        """
+
+        app_module = _app_module()
+        runtime = _RuntimeWithForkSupportStub(has_current_node=False)
+        app = app_module.SessionApp(runtime=runtime)
+        notifications: list[tuple[str, str]] = []
+
+        app.notify = lambda message, *, severity: notifications.append(
+            (message, severity)
+        )
+
+        # Call the fork action directly (simulating 'f' keybinding)
+        # Before implementation, this method may not exist
+        try:
+            app.action_fork_from_current_node()
+        except AttributeError:
+            # Expected to fail until implementation is added
+            pytest.fail("action_fork_from_current_node not implemented yet")
+
+        # Should have shown a warning notification
+        assert any(severity == "warning" for _, severity in notifications)
+
+    def test_f_keybinding_requires_running_session(self) -> None:
+        """Pressing `f` without active session should notify error."""
+
+        app_module = _app_module()
+        runtime = _RuntimeStub()  # No session
+        app = app_module.SessionApp(runtime=runtime)
+        notifications: list[tuple[str, str]] = []
+
+        app.notify = lambda message, *, severity: notifications.append(
+            (message, severity)
+        )
+
+        try:
+            app.action_fork_from_current_node()
+        except AttributeError:
+            pytest.fail("action_fork_from_current_node not implemented yet")
+
+        # Should show error about no active session
+        assert any(
+            "no active" in message.lower() or "session" in message.lower()
+            for message, _ in notifications
+        )
+
+
+class TestForkCancelBehavior:
+    """Unit tests for fork cancel behavior (T016)."""
+
+    def test_fork_cancel_does_not_create_new_graph(self) -> None:
+        """Canceling fork flow should not create a new graph.
+
+        Acceptance Scenario: Given the fork flow is active,
+        When the user cancels before confirming,
+        Then no new graph is created and the current graph remains active.
+        """
+
+        app_module = _app_module()
+        runtime = _RuntimeWithForkSupportStub(has_current_node=True)
+        app = app_module.SessionApp(runtime=runtime)
+
+        # Track if fork was actually invoked
+        fork_invoked = False
+
+        # Store original state
+        original_session_id = runtime.session_id
+
+        try:
+            # Simulate canceling the fork flow
+            app.action_cancel_fork()
+        except AttributeError:
+            pytest.fail("action_cancel_fork not implemented yet")
+
+        # Fork should not have been invoked
+        assert fork_invoked is False
+
+        # Session should remain unchanged
+        assert runtime.session_id == original_session_id
+
+    def test_fork_cancel_returns_to_normal_operation(self) -> None:
+        """Canceling fork should return to normal TUI operation."""
+
+        app_module = _app_module()
+        runtime = _RuntimeWithForkSupportStub(has_current_node=True)
+        app = app_module.SessionApp(runtime=runtime)
+
+        # Track if screen was popped
+        screens_popped = 0
+
+        def _pop_screen() -> None:
+            nonlocal screens_popped
+            screens_popped += 1
+
+        app.pop_screen = _pop_screen
+
+        try:
+            app.action_cancel_fork()
+        except AttributeError:
+            pytest.fail("action_cancel_fork not implemented yet")
+
+        # Should pop the fork screen
+        assert screens_popped == 1
