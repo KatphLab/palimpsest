@@ -277,6 +277,12 @@ class SessionApp(App[None]):
         except Exception:
             pass  # Panel not yet mounted
 
+        try:
+            telemetry_panel = self.query_one("#telemetry-panel", Static)
+            telemetry_panel.update(self._render_telemetry())
+        except Exception:
+            pass  # Panel not yet mounted
+
     def _refresh_footer_status(self) -> None:
         """Refresh footer with active graph status when runtime supports it."""
 

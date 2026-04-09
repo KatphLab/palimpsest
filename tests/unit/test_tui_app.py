@@ -109,6 +109,26 @@ def test_refresh_panels_updates_scene_text_when_mounted() -> None:
     assert panel.contents == ["updated content"]
 
 
+def test_refresh_panels_updates_telemetry_panel_when_mounted() -> None:
+    """Refreshing should update telemetry content when panel is mounted."""
+
+    app_module = _app_module()
+    app = app_module.SessionApp(runtime=_RuntimeStub())
+    panel = _StaticPanelSpy()
+    app._render_telemetry = lambda: "telemetry content"
+
+    def _query_one(selector: str, widget_type: type[object]) -> object:
+        if selector == "#telemetry-panel" and widget_type is Static:
+            return panel
+        raise AssertionError(f"Unexpected query selector={selector} type={widget_type}")
+
+    app.query_one = _query_one
+
+    app._refresh_panels()
+
+    assert panel.contents == ["telemetry content"]
+
+
 def test_complete_continue_generation_refreshes_panel_and_resets_state() -> None:
     """Completion handler should refresh panel and clear generating flag."""
 
