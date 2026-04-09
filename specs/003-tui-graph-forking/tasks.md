@@ -111,16 +111,16 @@
 
 ### Implementation for User Story 2
 
-- [ ] T036 [US2] Add `Tab` keybinding in src/tui/app.py for next graph
-- [ ] T037 [US2] Add `Shift+Tab` keybinding in src/tui/app.py for previous graph
-- [ ] T038 [US2] Implement graph switcher service in src/services/graph_switcher.py
-- [ ] T039 [US2] Update graph_registry.py with cyclic navigation logic
-- [ ] T040 [US2] Create status/footer widget in src/tui/widgets.py for position/total display
-- [ ] T041 [US2] Update story_projection.py to reflect active graph changes
-- [ ] T042 [US2] Implement status bar update in same interaction cycle as graph switch in src/tui/app.py
-- [ ] T043 [US2] Add handling for single graph case (Tab/Shift+Tab no-op) in src/tui/app.py
-- [ ] T044 [US2] Add handling for dynamic graph lifecycle changes in src/runtime/session_runtime.py
-- [ ] T045 [US2] Add logging for graph switch operations in src/runtime/session_runtime.py
+- [x] T036 [US2] Add `Tab` keybinding in src/tui/app.py for next graph
+- [x] T037 [US2] Add `Shift+Tab` keybinding in src/tui/app.py for previous graph
+- [x] T038 [US2] Implement graph switcher service in src/services/graph_switcher.py
+- [x] T039 [US2] Update graph_registry.py with cyclic navigation logic
+- [x] T040 [US2] Create status/footer widget in src/tui/widgets.py for position/total display
+- [x] T041 [US2] Update story_projection.py to reflect active graph changes
+- [x] T042 [US2] Implement status bar update in same interaction cycle as graph switch in src/tui/app.py
+- [x] T043 [US2] Add handling for single graph case (Tab/Shift+Tab no-op) in src/tui/app.py
+- [x] T044 [US2] Add handling for dynamic graph lifecycle changes in src/runtime/session_runtime.py
+- [x] T045 [US2] Add logging for graph switch operations in src/runtime/session_runtime.py
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 

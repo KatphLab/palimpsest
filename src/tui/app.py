@@ -12,6 +12,7 @@ from textual.widgets import Header, Static
 from models.commands import CommandResult
 from models.common import SessionStatus
 from models.fork_request import ForkRequest
+from models.requests import GraphNavigationDirection
 from runtime.session_runtime import SessionRuntime
 from tui.screens import (
     ForkSeedEntryScreen,
@@ -68,6 +69,8 @@ class SessionApp(App[None]):
         ("r", "resume_session", "Resume"),
         ("c", "continue_session", "Continue"),
         ("f", "fork_from_current_node", "Fork"),
+        ("tab", "next_graph", "Next graph"),
+        ("shift+tab", "previous_graph", "Previous graph"),
     ]
 
     def __init__(self, runtime: SessionRuntime | None = None) -> None:
@@ -210,6 +213,16 @@ class SessionApp(App[None]):
             pass
         self.notify("Fork cancelled", severity="information")
 
+    def action_next_graph(self) -> None:
+        """Switch to the next graph in cyclic order (Tab)."""
+
+        self._handle_graph_switch(direction=GraphNavigationDirection.NEXT)
+
+    def action_previous_graph(self) -> None:
+        """Switch to the previous graph in cyclic order (Shift+Tab)."""
+
+        self._handle_graph_switch(direction=GraphNavigationDirection.PREVIOUS)
+
     def _set_generating_scene(self, is_generating: bool) -> None:
         self._is_generating_scene = is_generating
         self._footer_bar.set_generating(is_generating)
@@ -256,11 +269,44 @@ class SessionApp(App[None]):
     def _refresh_panels(self) -> None:
         """Refresh both scene text and telemetry panels."""
 
+        self._refresh_footer_status()
+
         try:
             scene_panel = self.query_one("#scene-text-panel", Static)
             scene_panel.update(self._render_scene_text())
         except Exception:
             pass  # Panel not yet mounted
+
+    def _refresh_footer_status(self) -> None:
+        """Refresh footer with active graph status when runtime supports it."""
+
+        try:
+            status_snapshot = self.runtime.get_multi_graph_status_snapshot()
+            self._footer_bar.set_multi_graph_status(status_snapshot)
+        except AttributeError:
+            # Some unit-test stubs provide partial runtime interfaces.
+            return
+        except Exception:
+            return
+
+    def _handle_graph_switch(self, *, direction: GraphNavigationDirection) -> None:
+        """Handle graph switching and in-cycle status updates."""
+
+        graph_count = self.runtime.graph_count
+        if graph_count <= 1:
+            self._refresh_footer_status()
+            return
+
+        try:
+            if direction is GraphNavigationDirection.NEXT:
+                self.runtime.switch_to_next_graph()
+            else:
+                self.runtime.switch_to_previous_graph()
+        except Exception as error:
+            self.notify(f"Graph switch failed: {error}", severity="error")
+            return
+
+        self._refresh_panels()
 
         try:
             telemetry_panel = self.query_one("#telemetry-panel", Static)
@@ -288,11 +334,23 @@ class SessionApp(App[None]):
             "",
         ]
 
+        active_position: int | None = None
+        total_graphs: int | None = None
+        try:
+            status_snapshot = self.runtime.get_multi_graph_status_snapshot()
+            active_position = status_snapshot.active_position
+            total_graphs = status_snapshot.total_graphs
+        except Exception:
+            active_position = None
+            total_graphs = None
+
         if self.runtime.session is not None:
             lines.extend(
                 build_story_lines(
                     session_graph=self.runtime.session_graph,
                     session=self.runtime.session,
+                    active_position=active_position,
+                    total_graphs=total_graphs,
                 )
             )
 

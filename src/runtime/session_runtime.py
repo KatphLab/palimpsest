@@ -190,6 +190,7 @@ class _RuntimeEventType(StrEnum):
     LOCK_EDGE = "lock_edge"
     UNLOCK_EDGE = "unlock_edge"
     FORK_SESSION = "fork_session"
+    GRAPH_SWITCH = "graph_switch"
 
 
 class _RuntimeEvent(StrictBaseModel):
@@ -1217,7 +1218,14 @@ class SessionRuntime:
         Raises:
             NoActiveGraphError: If no graphs are registered.
         """
-        return self.graph_registry.switch_to_next()
+        previous_graph_id = self._active_graph_id_or_none()
+        switched_session = self.graph_registry.switch_to_next()
+        self._record_graph_switch_event(
+            direction=GraphNavigationDirection.NEXT,
+            previous_graph_id=previous_graph_id,
+            active_graph_id=switched_session.graph_id,
+        )
+        return switched_session
 
     def switch_to_previous_graph(self) -> GraphSession:
         """Switch to the previous graph in cyclic order (Shift+Tab navigation).
@@ -1228,7 +1236,25 @@ class SessionRuntime:
         Raises:
             NoActiveGraphError: If no graphs are registered.
         """
-        return self.graph_registry.switch_to_previous()
+        previous_graph_id = self._active_graph_id_or_none()
+        switched_session = self.graph_registry.switch_to_previous()
+        self._record_graph_switch_event(
+            direction=GraphNavigationDirection.PREVIOUS,
+            previous_graph_id=previous_graph_id,
+            active_graph_id=switched_session.graph_id,
+        )
+        return switched_session
+
+    def remove_graph_session(self, graph_id: str) -> None:
+        """Remove a graph session and preserve valid active-graph context."""
+
+        self.graph_registry.remove_session(graph_id)
+        remaining = self.graph_registry.get_session_count()
+        LOGGER.info(
+            "removed graph session %s (remaining_graphs=%d)",
+            graph_id,
+            remaining,
+        )
 
     def get_multi_graph_status_snapshot(self) -> MultiGraphStatusSnapshot:
         """Get a status snapshot for TUI multi-graph rendering.
@@ -1463,6 +1489,42 @@ class SessionRuntime:
         )
         self._runtime_event_buffer.append(runtime_event)
         self._mirror_runtime_event_to_event_log(runtime_event)
+
+    def _active_graph_id_or_none(self) -> str | None:
+        """Return the active graph identifier when one exists."""
+
+        try:
+            return self.graph_registry.get_active_session().graph_id
+        except NoActiveGraphError:
+            return None
+
+    def _record_graph_switch_event(
+        self,
+        *,
+        direction: GraphNavigationDirection,
+        previous_graph_id: str | None,
+        active_graph_id: str,
+    ) -> None:
+        """Emit structured logs/events for graph switch operations."""
+
+        status = self.get_multi_graph_status_snapshot()
+        message = (
+            f"graph switch {direction.value}: "
+            f"{previous_graph_id or 'none'} -> {active_graph_id} "
+            f"({status.active_position}/{status.total_graphs})"
+        )
+        LOGGER.info(message)
+
+        event_session_id = self.session_id
+        if event_session_id is None:
+            event_session_id = UUID(active_graph_id)
+
+        self._append_runtime_event(
+            event_type=_RuntimeEventType.GRAPH_SWITCH,
+            command_id=f"graph-switch-{direction.value}-{active_graph_id[:8]}",
+            session_id=event_session_id,
+            message=message,
+        )
 
     def _append_mutation_lifecycle_event(
         self,

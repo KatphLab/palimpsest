@@ -25,6 +25,7 @@ from models.common import DriftCategory
 from models.events import EventType, MutationStreamEvent
 from models.graph import GraphNode
 from models.node import SceneNode
+from models.responses import MultiGraphStatusSnapshot
 from models.session import Session
 from runtime.event_log import EventLog
 from tui.constants import (
@@ -65,6 +66,7 @@ class ShortcutFooterBar(Static):
         self._is_generating = False
         self._spinner_index = 0
         self._spinner_timer: Timer | None = None
+        self._multi_graph_status: MultiGraphStatusSnapshot | None = None
 
     def on_mount(self) -> None:
         """Render the footer text when mounted."""
@@ -81,16 +83,27 @@ class ShortcutFooterBar(Static):
     def shortcuts_text(self) -> str:
         """Return the static shortcuts legend shown in the footer."""
 
-        return "s Start   p Pause   r Resume   c Continue"
+        return (
+            "s Start   p Pause   r Resume   c Continue   "
+            "f Fork   Tab Next   Shift+Tab Previous"
+        )
 
     def status_text(self) -> str:
         """Return the current runtime status text."""
 
+        graph_status = self._graph_status_text()
         if not self._is_generating:
-            return "Idle"
+            return f"{graph_status} | Idle" if graph_status else "Idle"
 
         frame = self._SPINNER_FRAMES[self._spinner_index]
-        return f"{frame} Generating scene..."
+        generating = f"{frame} Generating scene..."
+        return f"{graph_status} | {generating}" if graph_status else generating
+
+    def set_multi_graph_status(self, status: MultiGraphStatusSnapshot) -> None:
+        """Update displayed active graph position/total and running state."""
+
+        self._multi_graph_status = status
+        self._update_display()
 
     def advance_spinner_frame(self) -> None:
         """Advance the spinner and redraw the footer."""
@@ -121,6 +134,16 @@ class ShortcutFooterBar(Static):
     def _update_display(self) -> None:
         footer_text = f"{self.shortcuts_text()}    {self.status_text()}"
         self.update(footer_text)
+
+    def _graph_status_text(self) -> str:
+        if self._multi_graph_status is None:
+            return ""
+
+        status = self._multi_graph_status
+        return (
+            f"{status.active_position}/{status.total_graphs} "
+            f"{status.active_running_state.value}"
+        )
 
 
 class _CommandRuntime(Protocol):
