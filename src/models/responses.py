@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import Field, StringConstraints, field_validator
 from typing_extensions import Annotated
 
 from models.common import StrictBaseModel, UTCDateTime
+from models.graph_session import ExecutionStatus
 from models.multi_graph_view import GraphSummary
 from utils.uuid_validation import ensure_valid_uuid
 
-__all__ = ["EdgeReference", "GraphForkResponse", "GraphSwitchResponse"]
+__all__ = [
+    "EdgeReference",
+    "GraphForkResponse",
+    "GraphSwitchResponse",
+    "MultiGraphStatusSnapshot",
+    "RunningState",
+]
 
 _EdgeIdentifier = Annotated[
     str,
@@ -74,3 +83,77 @@ class GraphSwitchResponse(StrictBaseModel):
     @classmethod
     def _validate_current_graph_id(cls, value: str) -> str:
         return ensure_valid_uuid(value, field_name="current_graph_id")
+
+
+class RunningState(StrEnum):
+    """Execution states for graph running status display.
+
+    Mirrors ExecutionStatus for UI display purposes.
+    """
+
+    IDLE = "idle"
+    RUNNING = "running"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class MultiGraphStatusSnapshot(StrictBaseModel):
+    """Multi-graph status snapshot for TUI display.
+
+    Contract per CA-003: contains active graph position, total graph count,
+    and active graph running state.
+    """
+
+    active_position: int = Field(
+        ge=1,
+        description="1-based active graph position",
+    )
+    total_graphs: int = Field(
+        ge=0,
+        description="Total number of available graphs",
+    )
+    active_running_state: RunningState = Field(
+        description="Running state of active graph only (not background graphs)",
+    )
+
+    @field_validator("active_position")
+    @classmethod
+    def _validate_active_position(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("active_position must be >= 1")
+
+        return value
+
+    @field_validator("total_graphs")
+    @classmethod
+    def _validate_total_graphs(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("total_graphs must be >= 0")
+
+        return value
+
+    @classmethod
+    def from_execution_status(
+        cls,
+        active_position: int,
+        total_graphs: int,
+        execution_status: ExecutionStatus,
+    ) -> MultiGraphStatusSnapshot:
+        """Create a MultiGraphStatusSnapshot from an ExecutionStatus.
+
+        Args:
+            active_position: 1-based position of the active graph
+            total_graphs: Total number of graphs
+            execution_status: ExecutionStatus from the active graph
+
+        Returns:
+            MultiGraphStatusSnapshot with converted running state
+        """
+        running_state = RunningState(execution_status.value)
+
+        return cls(
+            active_position=active_position,
+            total_graphs=total_graphs,
+            active_running_state=running_state,
+        )

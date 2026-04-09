@@ -39,14 +39,14 @@
 
 ### Data Models (All Stories Depend On These)
 
-- [ ] T003 [P] Implement GraphSession entity in src/models/graph_session.py
-- [ ] T004 [P] Implement ForkRequest entity in src/models/fork_request.py
-- [ ] T005 [P] Implement GraphRegistry entity in src/models/graph_registry.py
-- [ ] T006 [P] Implement StatusSnapshot entity in src/models/status_snapshot.py
-- [ ] T007 [P] Implement ForkFromCurrentNodeRequest contract in src/models/requests.py
-- [ ] T008 [P] Implement GraphSwitchRequest and GraphNavigationDirection in src/models/requests.py
-- [ ] T009 [P] Implement MultiGraphStatusSnapshot and RunningState in src/models/responses.py
-- [ ] T010 [P] Implement multi_graph_view models in src/models/multi_graph_view.py
+- [x] T003 [P] Implement GraphSession entity in src/models/graph_session.py
+- [x] T004 [P] Implement ForkRequest entity in src/models/fork_request.py
+- [x] T005 [P] Implement GraphRegistry entity in src/models/graph_registry.py
+- [x] T006 [P] Implement StatusSnapshot entity in src/models/status_snapshot.py
+- [x] T007 [P] Implement ForkFromCurrentNodeRequest contract in src/models/requests.py
+- [x] T008 [P] Implement GraphSwitchRequest and GraphNavigationDirection in src/models/requests.py
+- [x] T009 [P] Implement MultiGraphStatusSnapshot and RunningState in src/models/responses.py
+- [x] T010 [P] Implement multi_graph_view models in src/models/multi_graph_view.py
 
 ### Runtime Infrastructure
 
