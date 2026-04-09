@@ -26,8 +26,8 @@
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Verify Python 3.12+ environment and uv dependencies per plan.md
-- [ ] T002 [P] Ensure existing project structure at src/main.py, src/tui/, src/runtime/, src/models/ exists
+- [x] T001 Verify Python 3.12+ environment and uv dependencies per plan.md
+- [x] T002 [P] Ensure existing project structure at src/main.py, src/tui/, src/runtime/, src/models/ exists
 
 ---
 
