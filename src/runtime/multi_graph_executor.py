@@ -8,7 +8,9 @@ and status control for the TUI multi-graph forking feature.
 from __future__ import annotations
 
 import logging
+import threading
 from threading import RLock
+from typing import Callable
 
 from models.execution import ExecutionState, ExecutionStatus
 from models.graph_session import GraphSession
@@ -47,6 +49,7 @@ class MultiGraphExecutor:
         graph_registry: GraphRegistry | None = None,
         max_parallel: int = 10,
         logger: logging.Logger | None = None,
+        auto_execute_interval: float = 0.01,
     ) -> None:
         """Initialize the multi-graph executor.
 
@@ -54,6 +57,8 @@ class MultiGraphExecutor:
             graph_registry: Optional GraphRegistry instance. Creates default if None.
             max_parallel: Maximum number of parallel graph sessions allowed.
             logger: Optional logger instance.
+            auto_execute_interval: Interval in seconds between auto-execution cycles
+                for background graph progression. Set to 0 to disable auto-execution.
 
         Raises:
             ValueError: If max_parallel is not between 1 and 50.
@@ -69,6 +74,12 @@ class MultiGraphExecutor:
         self._max_parallel = max_parallel
         self._logger = logger if logger is not None else logging.getLogger(__name__)
         self._lock = RLock()
+
+        # Background execution support
+        self._auto_execute_interval = auto_execute_interval
+        self._background_thread: threading.Thread | None = None
+        self._stop_background = threading.Event()
+        self._execution_callback: Callable[[str], None] | None = None
 
     def register_graph(
         self,
@@ -183,7 +194,9 @@ class MultiGraphExecutor:
             session = self._registry.get_session(graph_id)
             session.execution_status = ExecutionStatus.RUNNING
             session.last_activity_at = utc_now()
-            return self._registry.update_session(session)
+            updated = self._registry.update_session(session)
+            self._maybe_start_background_execution()
+            return updated
 
     def pause_graph(self, graph_id: str) -> GraphSession:
         """Pause execution of a graph session (set status to PAUSED).
@@ -201,7 +214,9 @@ class MultiGraphExecutor:
             session = self._registry.get_session(graph_id)
             session.execution_status = ExecutionStatus.PAUSED
             session.last_activity_at = utc_now()
-            return self._registry.update_session(session)
+            updated = self._registry.update_session(session)
+            self._maybe_stop_background_execution()
+            return updated
 
     def resume_graph(self, graph_id: str) -> GraphSession:
         """Resume execution of a paused graph session (set status to RUNNING).
@@ -219,7 +234,9 @@ class MultiGraphExecutor:
             session = self._registry.get_session(graph_id)
             session.execution_status = ExecutionStatus.RUNNING
             session.last_activity_at = utc_now()
-            return self._registry.update_session(session)
+            updated = self._registry.update_session(session)
+            self._maybe_start_background_execution()
+            return updated
 
     def stop_graph(self, graph_id: str) -> GraphSession:
         """Stop execution of a graph session (set status to IDLE).
@@ -237,7 +254,9 @@ class MultiGraphExecutor:
             session = self._registry.get_session(graph_id)
             session.execution_status = ExecutionStatus.IDLE
             session.last_activity_at = utc_now()
-            return self._registry.update_session(session)
+            updated = self._registry.update_session(session)
+            self._maybe_stop_background_execution()
+            return updated
 
     def remove_session(self, graph_id: str) -> None:
         """Remove a GraphSession from the executor.
@@ -249,6 +268,7 @@ class MultiGraphExecutor:
         """
         with self._lock:
             self._registry.remove_session(graph_id)
+            self._maybe_stop_background_execution()
 
     def list_sessions(self) -> list[GraphSession]:
         """Get all registered sessions in order.
@@ -356,6 +376,123 @@ class MultiGraphExecutor:
         """
         session = self.stop_graph(graph_id)
         return _session_to_execution_state(session)
+
+    def execute_all(self) -> list[GraphSession]:
+        """Execute one cycle for all running graphs regardless of focus.
+
+        This method advances all graphs with RUNNING status, updating their
+        last_activity_at timestamp. This enables background execution where
+        inactive graphs continue to progress while not focused.
+
+        Returns:
+            List of defensive copies of updated running sessions.
+        """
+        with self._lock:
+            updated_sessions: list[GraphSession] = []
+            now = utc_now()
+            sessions = self._registry.list_sessions()
+
+            for session in sessions:
+                if session.execution_status == ExecutionStatus.RUNNING:
+                    session.last_activity_at = now
+                    updated = self._registry.update_session(session)
+                    updated_sessions.append(updated)
+
+            return updated_sessions
+
+    def start_background_execution(
+        self, execution_callback: Callable[[str], None] | None = None
+    ) -> None:
+        """Start the background execution thread.
+
+        This enables automatic progression of all running graphs regardless
+        of which graph is currently active/focused.
+
+        Args:
+            execution_callback: Optional callback invoked for each graph
+                that is executed during background cycles.
+        """
+        with self._lock:
+            if (
+                self._background_thread is not None
+                and self._background_thread.is_alive()
+            ):
+                return  # Already running
+
+            self._execution_callback = execution_callback
+            self._stop_background.clear()
+            self._background_thread = threading.Thread(
+                target=self._background_execution_loop,
+                daemon=True,
+                name="MultiGraphExecutor-Background",
+            )
+            self._background_thread.start()
+            self._logger.debug("Background execution started")
+
+    def stop_background_execution(self) -> None:
+        """Stop the background execution thread."""
+        background_thread: threading.Thread | None = None
+        with self._lock:
+            if self._background_thread is None:
+                return
+
+            self._stop_background.set()
+            background_thread = self._background_thread
+
+        assert background_thread is not None
+        background_thread.join(timeout=1.0)
+
+        with self._lock:
+            if self._background_thread is background_thread:
+                if background_thread.is_alive():
+                    self._logger.warning(
+                        "Background execution thread did not stop within timeout"
+                    )
+                else:
+                    self._background_thread = None
+            self._logger.debug("Background execution stopped")
+
+    def _background_execution_loop(self) -> None:
+        """Background thread loop that executes all running graphs."""
+        if self._auto_execute_interval <= 0:
+            return
+
+        while not self._stop_background.is_set():
+            try:
+                running_sessions = self.execute_all()
+                if self._execution_callback:
+                    for session in running_sessions:
+                        self._execution_callback(session.graph_id)
+            except Exception as error:
+                self._logger.warning("Background execution error: %s", error)
+
+            # Wait for the interval or until stopped
+            self._stop_background.wait(self._auto_execute_interval)
+
+    def _maybe_start_background_execution(self) -> None:
+        """Start background execution if there are running graphs and interval > 0."""
+        if self._auto_execute_interval <= 0:
+            return
+
+        # Check if any graph is running
+        has_running = any(
+            s.execution_status == ExecutionStatus.RUNNING
+            for s in self._registry.list_sessions()
+        )
+
+        if has_running:
+            self.start_background_execution()
+
+    def _maybe_stop_background_execution(self) -> None:
+        """Stop background execution if no running graphs remain."""
+        # Check if any graph is still running
+        has_running = any(
+            s.execution_status == ExecutionStatus.RUNNING
+            for s in self._registry.list_sessions()
+        )
+
+        if not has_running:
+            self.stop_background_execution()
 
 
 def _session_to_execution_state(session: GraphSession) -> ExecutionState:

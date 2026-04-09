@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from threading import Lock
+from time import perf_counter
 from uuid import UUID, uuid4
 
 from pydantic import ConfigDict, Field
@@ -1218,12 +1219,21 @@ class SessionRuntime:
         Raises:
             NoActiveGraphError: If no graphs are registered.
         """
+        start_time = perf_counter()
         previous_graph_id = self._active_graph_id_or_none()
         switched_session = self.graph_registry.switch_to_next()
+        elapsed_ms = (perf_counter() - start_time) * 1000
         self._record_graph_switch_event(
             direction=GraphNavigationDirection.NEXT,
             previous_graph_id=previous_graph_id,
             active_graph_id=switched_session.graph_id,
+            elapsed_ms=elapsed_ms,
+        )
+        LOGGER.info(
+            "graph switch next completed in %.2f ms (%s -> %s)",
+            elapsed_ms,
+            previous_graph_id or "none",
+            switched_session.graph_id,
         )
         return switched_session
 
@@ -1236,12 +1246,21 @@ class SessionRuntime:
         Raises:
             NoActiveGraphError: If no graphs are registered.
         """
+        start_time = perf_counter()
         previous_graph_id = self._active_graph_id_or_none()
         switched_session = self.graph_registry.switch_to_previous()
+        elapsed_ms = (perf_counter() - start_time) * 1000
         self._record_graph_switch_event(
             direction=GraphNavigationDirection.PREVIOUS,
             previous_graph_id=previous_graph_id,
             active_graph_id=switched_session.graph_id,
+            elapsed_ms=elapsed_ms,
+        )
+        LOGGER.info(
+            "graph switch previous completed in %.2f ms (%s -> %s)",
+            elapsed_ms,
+            previous_graph_id or "none",
+            switched_session.graph_id,
         )
         return switched_session
 
@@ -1414,6 +1433,8 @@ class SessionRuntime:
             The newly created GraphSession if successful, None otherwise.
         """
 
+        start_time = perf_counter()
+
         try:
             # Verify source session exists
             self.graph_registry.get_session(fork_request.active_graph_id)
@@ -1440,23 +1461,27 @@ class SessionRuntime:
         # Set the forked session as active - T025
         self.graph_registry.set_active_session(forked_graph_id)
 
-        # Log the fork operation - T028
+        # Calculate timing
+        elapsed_ms = (perf_counter() - start_time) * 1000
+
+        # Log the fork operation - T028, T056
         # Use the parent graph ID as session_id if no active session exists
         event_session_id = self.session_id or UUID(fork_request.active_graph_id)
         self._append_runtime_event(
             event_type=_RuntimeEventType.FORK_SESSION,
             command_id=f"fork-from-node-{forked_graph_id[:8]}",
             session_id=event_session_id,
-            message=f"Fork created from node {fork_request.current_node_id} with seed {fork_request.seed!r}",
+            message=f"Fork created from node {fork_request.current_node_id} with seed {fork_request.seed!r} [{elapsed_ms:.2f}ms]",
             forked_session_id=UUID(forked_graph_id),
             parent_session_id=UUID(fork_request.active_graph_id),
         )
 
         LOGGER.info(
-            "Forked graph %s from %s at node %s",
+            "Forked graph %s from %s at node %s in %.2f ms",
             forked_graph_id,
             fork_request.active_graph_id,
             fork_request.current_node_id,
+            elapsed_ms,
         )
 
         return registered_session
@@ -1504,6 +1529,7 @@ class SessionRuntime:
         direction: GraphNavigationDirection,
         previous_graph_id: str | None,
         active_graph_id: str,
+        elapsed_ms: float = 0.0,
     ) -> None:
         """Emit structured logs/events for graph switch operations."""
 
@@ -1511,7 +1537,8 @@ class SessionRuntime:
         message = (
             f"graph switch {direction.value}: "
             f"{previous_graph_id or 'none'} -> {active_graph_id} "
-            f"({status.active_position}/{status.total_graphs})"
+            f"({status.active_position}/{status.total_graphs}) "
+            f"[{elapsed_ms:.2f}ms]"
         )
         LOGGER.info(message)
 

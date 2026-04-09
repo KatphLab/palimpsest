@@ -143,13 +143,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T050 [US3] Update multi_graph_executor.py to continue execution for all graphs regardless of focus
-- [ ] T051 [US3] Implement active graph running state extraction in src/runtime/session_runtime.py
-- [ ] T052 [US3] Update status widget to render only active graph running state in src/tui/widgets.py
-- [ ] T053 [US3] Add background state isolation to prevent status leakage in src/runtime/session_runtime.py
-- [ ] T054 [US3] Verify latency targets in integration tests (switch <300ms, fork <1s per CA-005)
-- [ ] T055 [US3] Add timing instrumentation to graph switch operations in src/runtime/session_runtime.py
-- [ ] T056 [US3] Add timing instrumentation to fork operations in src/runtime/session_runtime.py
+- [x] T050 [US3] Update multi_graph_executor.py to continue execution for all graphs regardless of focus
+- [x] T051 [US3] Implement active graph running state extraction in src/runtime/session_runtime.py
+- [x] T052 [US3] Update status widget to render only active graph running state in src/tui/widgets.py
+- [x] T053 [US3] Add background state isolation to prevent status leakage in src/runtime/session_runtime.py
+- [x] T054 [US3] Verify latency targets in integration tests (switch <300ms, fork <1s per CA-005)
+- [x] T055 [US3] Add timing instrumentation to graph switch operations in src/runtime/session_runtime.py
+- [x] T056 [US3] Add timing instrumentation to fork operations in src/runtime/session_runtime.py
 
 **Checkpoint**: All user stories 1-3 should now be independently functional
 
